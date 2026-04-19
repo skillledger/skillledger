@@ -160,7 +160,7 @@ func (s *Signer) SignAndWrite(statement *intoto.Statement, artifactPath string) 
 	}
 
 	bundlePath := artifactPath + ".sigstore.json"
-	if err := os.WriteFile(bundlePath, result.BundleJSON, 0644); err != nil {
+	if err := os.WriteFile(bundlePath, result.BundleJSON, 0600); err != nil {
 		return nil, fmt.Errorf("writing bundle to %s: %w", bundlePath, err)
 	}
 

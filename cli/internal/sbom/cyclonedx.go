@@ -10,18 +10,25 @@ import (
 )
 
 // generateUUID creates a UUID v4 string without an external dependency.
-func generateUUID() string {
+// Returns error if crypto/rand fails (WR-03).
+func generateUUID() (string, error) {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generating UUID: %w", err)
+	}
 	b[6] = (b[6] & 0x0f) | 0x40 // version 4
 	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:]), nil
 }
 
 // GenerateCycloneDX writes a CycloneDX 1.6 JSON BOM to w from scan results.
 func GenerateCycloneDX(w io.Writer, results []scanner.ScanResult) error {
 	bom := cdx.NewBOM()
-	bom.SerialNumber = "urn:uuid:" + generateUUID()
+	uuid, err := generateUUID()
+	if err != nil {
+		return fmt.Errorf("generating BOM serial number: %w", err)
+	}
+	bom.SerialNumber = "urn:uuid:" + uuid
 	bom.Metadata = &cdx.Metadata{
 		Component: &cdx.Component{
 			Type: cdx.ComponentTypeApplication,

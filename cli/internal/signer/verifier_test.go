@@ -50,3 +50,23 @@ func TestVerifier_MultipleOptions(t *testing.T) {
 	assert.Equal(t, "https://token.actions.githubusercontent.com", v.expectedIssuer)
 	assert.Empty(t, v.expectedSAN, "SAN should be empty when not set")
 }
+
+func TestVerifier_IssuerOnlyRejectsVerify(t *testing.T) {
+	// CR-01: Setting only issuer without SAN must error, not silently skip identity check
+	v := NewVerifier(
+		WithExpectedIssuer("https://accounts.google.com"),
+	)
+	_, err := v.Verify("/nonexistent/bundle.sigstore.json", []byte("deadbeef"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "both expectedIssuer and expectedSAN must be set")
+}
+
+func TestVerifier_SANOnlyRejectsVerify(t *testing.T) {
+	// CR-01: Setting only SAN without issuer must error, not silently skip identity check
+	v := NewVerifier(
+		WithExpectedSAN("user@example.com"),
+	)
+	_, err := v.Verify("/nonexistent/bundle.sigstore.json", []byte("deadbeef"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "both expectedIssuer and expectedSAN must be set")
+}

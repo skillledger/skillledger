@@ -59,6 +59,11 @@ func NewVerifier(opts ...VerifierOption) *Verifier {
 //   - Observer timestamps for time-based key rotation support (SIGN-04)
 //   - Certificate identity matching if expectedIssuer and expectedSAN are set (T-04-08)
 func (v *Verifier) Verify(bundlePath string, artifactDigest []byte) (*VerifyResult, error) {
+	// Validate identity options early: both must be set if either is set (CR-01)
+	if (v.expectedIssuer != "") != (v.expectedSAN != "") {
+		return nil, fmt.Errorf("both expectedIssuer and expectedSAN must be set for identity verification (got issuer=%q, san=%q)", v.expectedIssuer, v.expectedSAN)
+	}
+
 	// Load bundle from disk (T-04-07: untrusted input from disk)
 	log.Debug().Str("path", bundlePath).Msg("loading Sigstore bundle")
 	b, err := bundle.LoadJSONFromPath(bundlePath)
@@ -93,6 +98,7 @@ func (v *Verifier) Verify(bundlePath string, artifactDigest []byte) (*VerifyResu
 	var policyOpts []verify.PolicyOption
 
 	// Certificate identity matching (T-04-08)
+	// Early validation guarantees both are set when either is set
 	if v.expectedIssuer != "" && v.expectedSAN != "" {
 		log.Debug().
 			Str("issuer", v.expectedIssuer).

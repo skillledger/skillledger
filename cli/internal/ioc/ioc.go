@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/skillledger/skillledger/internal/scanner"
@@ -63,7 +64,27 @@ func (d *Database) Match(sha256 string) (*scanner.IOCMatchInfo, bool) {
 
 // FetchUpdates fetches IOC data from apiURL and merges into the database.
 // Timeout: 5 seconds. Response body capped at 1MB.
+// Security: validates URL scheme (HTTPS only) and host against allowlist (CR-01).
 func (d *Database) FetchUpdates(apiURL string) error {
+	parsed, err := url.Parse(apiURL)
+	if err != nil {
+		return fmt.Errorf("invalid IOC API URL: %w", err)
+	}
+	if parsed.Scheme != "https" {
+		return fmt.Errorf("IOC API URL must use HTTPS, got %q", parsed.Scheme)
+	}
+	allowedHosts := []string{"api.skillledger.dev"}
+	hostAllowed := false
+	for _, h := range allowedHosts {
+		if parsed.Hostname() == h {
+			hostAllowed = true
+			break
+		}
+	}
+	if !hostAllowed {
+		return fmt.Errorf("IOC API host %q not in allowlist", parsed.Hostname())
+	}
+
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(apiURL)
 	if err != nil {

@@ -48,6 +48,20 @@ func NewEngine(rulesDir string) (*Engine, error) {
 		}
 
 		fullPath := filepath.Join(rulesDir, name)
+
+		// Security: validate resolved path stays within rules directory (WR-04)
+		resolved, err := filepath.EvalSymlinks(fullPath)
+		if err != nil {
+			return nil, fmt.Errorf("resolving rule file path %s: %w", name, err)
+		}
+		resolvedDir, err := filepath.EvalSymlinks(rulesDir)
+		if err != nil {
+			return nil, fmt.Errorf("resolving rules directory: %w", err)
+		}
+		if !strings.HasPrefix(resolved, resolvedDir+string(os.PathSeparator)) {
+			return nil, fmt.Errorf("rule file %s escapes rules directory", name)
+		}
+
 		data, err := os.ReadFile(fullPath)
 		if err != nil {
 			return nil, fmt.Errorf("reading rule file %s: %w", name, err)

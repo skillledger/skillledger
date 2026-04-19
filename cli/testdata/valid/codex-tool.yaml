@@ -1,0 +1,13 @@
+skillledger: 1
+id: com.openai.codex.linter
+version: "0.2.0"
+kind: codex-tool
+source:
+  repository: https://github.com/example/codex-linter
+  ref: v0.2.0
+capabilities:
+  filesystem:
+    - "read"
+profile:
+  display_name: "Code Linter"
+  category: developer-tools

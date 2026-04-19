@@ -1,0 +1,5 @@
+skillledger: 1
+version: "1.0.0"
+source:
+  repository: https://github.com/example/test
+capabilities: {}

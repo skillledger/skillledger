@@ -1,0 +1,15 @@
+skillledger: 1
+id: ai.opencode.git-assistant
+version: "1.0.0"
+kind: opencode
+source:
+  repository: https://github.com/example/git-assistant
+  ref: main
+capabilities:
+  tools:
+    - "execute:git"
+profile:
+  plugin_type: tool
+  tools:
+    - git-diff
+    - git-commit

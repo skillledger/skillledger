@@ -1,0 +1,19 @@
+skillledger: 1
+id: ai.openclaw.slack-plugin
+version: "0.5.0"
+kind: openclaw-plugin
+source:
+  repository: https://github.com/example/slack-plugin
+  ref: v0.5.0
+capabilities:
+  network:
+    - "outbound:slack.com"
+  secrets:
+    - "env:SLACK_BOT_TOKEN"
+  tools:
+    - "execute:node"
+profile:
+  provider_auth_env_vars:
+    - SLACK_BOT_TOKEN
+  channel_env_vars:
+    - SLACK_CHANNEL_ID

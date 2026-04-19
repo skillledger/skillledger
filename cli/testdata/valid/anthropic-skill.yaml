@@ -1,0 +1,15 @@
+skillledger: 1
+id: io.agentskills.summarizer
+version: "1.2.0"
+kind: anthropic-skill
+source:
+  repository: https://github.com/example/summarizer
+  ref: v1.2.0
+capabilities:
+  network:
+    - "outbound:*.anthropic.com"
+profile:
+  skill_name: summarizer
+  description: "Summarizes long documents"
+  triggers:
+    - "/summarize"

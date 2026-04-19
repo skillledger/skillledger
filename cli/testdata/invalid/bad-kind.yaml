@@ -1,0 +1,7 @@
+skillledger: 1
+id: com.example.test
+version: "1.0.0"
+kind: unknown-ecosystem
+source:
+  repository: https://github.com/example/test
+capabilities: {}

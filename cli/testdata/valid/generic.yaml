@@ -1,0 +1,11 @@
+skillledger: 1
+id: org.example.custom-tool
+version: "0.1.0"
+kind: generic
+source:
+  repository: https://github.com/example/custom-tool
+  ref: main
+capabilities: {}
+profile:
+  runtime: node
+  entrypoint: index.js

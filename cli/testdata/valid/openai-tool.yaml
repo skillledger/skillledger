@@ -1,0 +1,15 @@
+skillledger: 1
+id: com.openai.code-interpreter
+version: "3.0.0"
+kind: openai-tool
+source:
+  repository: https://github.com/example/code-interpreter
+  ref: main
+capabilities:
+  filesystem:
+    - "read"
+    - "write:./sandbox"
+  tools:
+    - "execute:python"
+profile:
+  function_name: code_interpreter

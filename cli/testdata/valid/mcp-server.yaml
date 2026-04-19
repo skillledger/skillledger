@@ -1,0 +1,17 @@
+skillledger: 1
+id: io.modelcontext.weather-server
+version: "2.1.0"
+kind: mcp-server
+source:
+  repository: https://github.com/example/weather-mcp
+  ref: main
+capabilities:
+  network:
+    - "outbound:api.weather.gov"
+  secrets:
+    - "env:WEATHER_API_KEY"
+profile:
+  transport: stdio
+  command: node
+  args:
+    - "dist/index.js"

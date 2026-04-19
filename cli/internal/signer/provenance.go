@@ -25,6 +25,18 @@ type ProvenanceInput struct {
 // be serialized (via SerializeStatement) and wrapped in a DSSE envelope for
 // signing.
 func CreateProvenance(input ProvenanceInput) (*intoto.Statement, error) {
+	if input.ArtifactName == "" {
+		return nil, fmt.Errorf("artifact name is required")
+	}
+	if input.Repository == "" {
+		return nil, fmt.Errorf("repository URL is required")
+	}
+	if input.Ref == "" {
+		return nil, fmt.Errorf("git ref is required")
+	}
+	if input.BuiltAt == "" {
+		return nil, fmt.Errorf("build timestamp is required")
+	}
 	if len(input.ArtifactDigest) != 64 {
 		return nil, fmt.Errorf("artifact digest must be exactly 64 hex chars (SHA-256), got %d", len(input.ArtifactDigest))
 	}

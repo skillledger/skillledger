@@ -154,6 +154,38 @@ func TestProvenance_InvalidHexDigest(t *testing.T) {
 	assert.Contains(t, err.Error(), "artifact digest is not valid hex")
 }
 
+func TestProvenance_EmptyArtifactName(t *testing.T) {
+	input := newTestProvenanceInput()
+	input.ArtifactName = ""
+	_, err := CreateProvenance(input)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "artifact name is required")
+}
+
+func TestProvenance_EmptyRepository(t *testing.T) {
+	input := newTestProvenanceInput()
+	input.Repository = ""
+	_, err := CreateProvenance(input)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "repository URL is required")
+}
+
+func TestProvenance_EmptyRef(t *testing.T) {
+	input := newTestProvenanceInput()
+	input.Ref = ""
+	_, err := CreateProvenance(input)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "git ref is required")
+}
+
+func TestProvenance_EmptyBuiltAt(t *testing.T) {
+	input := newTestProvenanceInput()
+	input.BuiltAt = ""
+	_, err := CreateProvenance(input)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "build timestamp is required")
+}
+
 func TestProvenance_InvocationID(t *testing.T) {
 	input := newTestProvenanceInput()
 	stmt, err := CreateProvenance(input)

@@ -44,7 +44,26 @@ func TestMatch_NotFound(t *testing.T) {
 	assert.Nil(t, match)
 }
 
-func TestFetchUpdates_Success(t *testing.T) {
+func TestFetchUpdates_RejectsHTTP(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	db := ioc.NewDatabase()
+	err := db.FetchUpdates(ts.URL)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "HTTPS")
+}
+
+func TestFetchUpdates_RejectsUnknownHost(t *testing.T) {
+	db := ioc.NewDatabase()
+	err := db.FetchUpdates("https://evil.example.com/ioc")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not in allowlist")
+}
+
+func TestFetchUpdatesWithClient_Success(t *testing.T) {
 	entries := []ioc.Entry{
 		{
 			SHA256:      "hash1",
@@ -71,7 +90,7 @@ func TestFetchUpdates_Success(t *testing.T) {
 	defer ts.Close()
 
 	db := ioc.NewDatabase()
-	err = db.FetchUpdates(ts.URL)
+	err = db.FetchUpdatesWithClient(ts.URL, ts.Client())
 	require.NoError(t, err)
 	assert.Equal(t, 2, db.Count())
 
@@ -84,7 +103,7 @@ func TestFetchUpdates_Success(t *testing.T) {
 	assert.Equal(t, "Malicious skill 2", match.Description)
 }
 
-func TestFetchUpdates_Timeout(t *testing.T) {
+func TestFetchUpdatesWithClient_Timeout(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(10 * time.Second)
 		w.WriteHeader(http.StatusOK)
@@ -92,11 +111,12 @@ func TestFetchUpdates_Timeout(t *testing.T) {
 	defer ts.Close()
 
 	db := ioc.NewDatabase()
-	err := db.FetchUpdates(ts.URL)
-	assert.Error(t, err, "should timeout after 5 seconds")
+	client := &http.Client{Timeout: 1 * time.Second}
+	err := db.FetchUpdatesWithClient(ts.URL, client)
+	assert.Error(t, err, "should timeout")
 }
 
-func TestFetchUpdates_InvalidJSON(t *testing.T) {
+func TestFetchUpdatesWithClient_InvalidJSON(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte("not json"))
@@ -104,11 +124,11 @@ func TestFetchUpdates_InvalidJSON(t *testing.T) {
 	defer ts.Close()
 
 	db := ioc.NewDatabase()
-	err := db.FetchUpdates(ts.URL)
+	err := db.FetchUpdatesWithClient(ts.URL, ts.Client())
 	assert.Error(t, err, "should fail on invalid JSON")
 }
 
-func TestFetchUpdates_LargeResponse(t *testing.T) {
+func TestFetchUpdatesWithClient_LargeResponse(t *testing.T) {
 	// Create a response larger than 1MB
 	largeBody := "[" + strings.Repeat(`{"sha256":"x","description":"d","severity":"s","source":"src","reported_at":"t"},`, 50000)
 	largeBody = largeBody[:len(largeBody)-1] + "]" // remove trailing comma, close array
@@ -120,20 +140,20 @@ func TestFetchUpdates_LargeResponse(t *testing.T) {
 	defer ts.Close()
 
 	db := ioc.NewDatabase()
-	err := db.FetchUpdates(ts.URL)
+	err := db.FetchUpdatesWithClient(ts.URL, ts.Client())
 	// With 1MB limit, parsing a >1MB body should either error or only parse partial data
 	// The LimitReader will truncate, causing a JSON decode error
 	assert.Error(t, err, "should error when response exceeds 1MB limit")
 }
 
-func TestFetchUpdates_NonOKStatus(t *testing.T) {
+func TestFetchUpdatesWithClient_NonOKStatus(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer ts.Close()
 
 	db := ioc.NewDatabase()
-	err := db.FetchUpdates(ts.URL)
+	err := db.FetchUpdatesWithClient(ts.URL, ts.Client())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "status 500")
 }

@@ -85,7 +85,16 @@ func (d *Database) FetchUpdates(apiURL string) error {
 		return fmt.Errorf("IOC API host %q not in allowlist", parsed.Hostname())
 	}
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	return d.fetchAndMerge(apiURL, &http.Client{Timeout: 5 * time.Second})
+}
+
+// FetchUpdatesWithClient is like FetchUpdates but uses the provided HTTP client
+// and skips URL validation. Intended for testing with httptest.NewTLSServer.
+func (d *Database) FetchUpdatesWithClient(apiURL string, client *http.Client) error {
+	return d.fetchAndMerge(apiURL, client)
+}
+
+func (d *Database) fetchAndMerge(apiURL string, client *http.Client) error {
 	resp, err := client.Get(apiURL)
 	if err != nil {
 		return fmt.Errorf("fetching IOC updates: %w", err)

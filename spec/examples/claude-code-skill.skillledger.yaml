@@ -1,0 +1,17 @@
+skillledger: 1
+id: com.example.code-reviewer
+version: "1.0.0"
+kind: claude-code-skill
+source:
+  repository: https://github.com/example/code-reviewer
+  ref: v1.0.0
+capabilities:
+  filesystem:
+    - "read"
+  network:
+    - "outbound:*.anthropic.com"
+profile:
+  skill_name: code-reviewer
+  triggers:
+    - "/review"
+  load_behavior: auto

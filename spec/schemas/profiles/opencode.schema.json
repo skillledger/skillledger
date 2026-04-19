@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillledger.dev/schemas/v0.1/profiles/opencode.schema.json",
+  "title": "OpenCode Profile",
+  "description": "Profile fields for OpenCode plugins",
+  "type": "object",
+  "properties": {
+    "plugin_type": {
+      "type": "string",
+      "description": "Type of OpenCode plugin"
+    },
+    "tools": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Tools provided by this plugin"
+    },
+    "agents": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Agents provided by this plugin"
+    }
+  },
+  "additionalProperties": true
+}

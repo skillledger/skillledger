@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillledger.dev/schemas/v0.1/profiles/openclaw-plugin.schema.json",
+  "title": "OpenClaw Plugin Profile",
+  "description": "Profile fields for OpenClaw plugins",
+  "type": "object",
+  "properties": {
+    "config_schema": {
+      "type": "object",
+      "description": "JSON Schema for plugin configuration"
+    },
+    "provider_auth_env_vars": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Environment variables for provider authentication"
+    },
+    "channel_env_vars": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Environment variables for channel configuration"
+    }
+  },
+  "additionalProperties": true
+}

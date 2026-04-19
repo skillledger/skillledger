@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillledger.dev/schemas/v0.1/profiles/mcp-server.schema.json",
+  "title": "MCP Server Profile",
+  "description": "Profile fields for Model Context Protocol servers",
+  "type": "object",
+  "properties": {
+    "transport": {
+      "type": "string",
+      "enum": ["stdio", "sse", "streamable-http"],
+      "description": "MCP transport mechanism"
+    },
+    "command": {
+      "type": "string",
+      "description": "Command to start the MCP server"
+    },
+    "args": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Command arguments"
+    },
+    "env_vars": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Required environment variables"
+    }
+  },
+  "additionalProperties": true
+}

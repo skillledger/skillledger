@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillledger.dev/schemas/v0.1/core.schema.json",
+  "title": "SkillLedger Artifact Manifest",
+  "description": "Universal manifest format for AI agent skill artifacts",
+  "type": "object",
+  "required": ["skillledger", "id", "version", "kind", "source", "capabilities"],
+  "properties": {
+    "skillledger": {
+      "type": "integer",
+      "const": 1,
+      "description": "Spec version marker"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)*$",
+      "description": "Reverse-domain-style identifier (e.g., com.example.my-skill)"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?(\\+[a-zA-Z0-9.]+)?$",
+      "description": "SemVer version string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "claude-code-skill",
+        "mcp-server",
+        "openclaw-plugin",
+        "anthropic-skill",
+        "openai-tool",
+        "codex-tool",
+        "opencode",
+        "generic"
+      ],
+      "description": "Ecosystem type"
+    },
+    "source": { "$ref": "#/$defs/source" },
+    "build": { "$ref": "#/$defs/build" },
+    "capabilities": { "$ref": "capabilities.schema.json" },
+    "attestation": { "$ref": "#/$defs/attestation" },
+    "profile": {
+      "type": "object",
+      "description": "Ecosystem-specific profile fields"
+    }
+  },
+  "unevaluatedProperties": false,
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "claude-code-skill" } }, "required": ["kind"] },
+      "then": { "properties": { "profile": { "$ref": "profiles/claude-code-skill.schema.json" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "mcp-server" } }, "required": ["kind"] },
+      "then": { "properties": { "profile": { "$ref": "profiles/mcp-server.schema.json" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "openclaw-plugin" } }, "required": ["kind"] },
+      "then": { "properties": { "profile": { "$ref": "profiles/openclaw-plugin.schema.json" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "anthropic-skill" } }, "required": ["kind"] },
+      "then": { "properties": { "profile": { "$ref": "profiles/anthropic-skill.schema.json" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "openai-tool" } }, "required": ["kind"] },
+      "then": { "properties": { "profile": { "$ref": "profiles/openai-tool.schema.json" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "codex-tool" } }, "required": ["kind"] },
+      "then": { "properties": { "profile": { "$ref": "profiles/codex-tool.schema.json" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "opencode" } }, "required": ["kind"] },
+      "then": { "properties": { "profile": { "$ref": "profiles/opencode.schema.json" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "generic" } }, "required": ["kind"] },
+      "then": { "properties": { "profile": { "$ref": "profiles/generic.schema.json" } } }
+    }
+  ],
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": ["repository"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "format": "uri",
+          "description": "Git repository URL"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Git ref (branch, tag, or commit SHA)"
+        },
+        "directory": {
+          "type": "string",
+          "description": "Subdirectory within the repo"
+        }
+      },
+      "additionalProperties": false
+    },
+    "build": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Build command"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Build environment variables"
+        },
+        "reproducible": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether build is deterministic"
+        }
+      },
+      "additionalProperties": false
+    },
+    "attestation": {
+      "type": "object",
+      "properties": {
+        "signed_by": {
+          "type": "string",
+          "description": "Signer identity (OIDC subject)"
+        },
+        "transparency_log": {
+          "type": "string",
+          "format": "uri",
+          "description": "Transparency log URL"
+        },
+        "provenance": {
+          "type": "string",
+          "description": "SLSA provenance predicate type"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

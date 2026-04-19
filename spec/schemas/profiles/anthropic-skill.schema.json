@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillledger.dev/schemas/v0.1/profiles/anthropic-skill.schema.json",
+  "title": "Anthropic Skill Profile",
+  "description": "Profile fields for Anthropic platform skills",
+  "type": "object",
+  "properties": {
+    "skill_name": {
+      "type": "string",
+      "description": "Skill name as registered on the Anthropic platform"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable skill description"
+    },
+    "triggers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Activation triggers for the skill"
+    }
+  },
+  "additionalProperties": true
+}

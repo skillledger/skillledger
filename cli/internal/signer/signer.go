@@ -136,11 +136,15 @@ func (s *Signer) Sign(statement *intoto.Statement) (*SignResult, error) {
 	}
 
 	// Extract Rekor log index from transparency log entry
-	var logIndex int64
+	// Use -1 as sentinel to distinguish "no entry" from valid index 0
+	var logIndex int64 = -1
 	if vm := bundle.GetVerificationMaterial(); vm != nil {
 		if entries := vm.GetTlogEntries(); len(entries) > 0 {
 			logIndex = entries[0].GetLogIndex()
 		}
+	}
+	if logIndex < 0 {
+		return nil, fmt.Errorf("Sigstore bundle has no Rekor transparency log entry: non-repudiation requires log inclusion")
 	}
 
 	log.Debug().Int64("log_index", logIndex).Msg("signing complete")

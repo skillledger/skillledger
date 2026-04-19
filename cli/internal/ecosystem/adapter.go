@@ -54,14 +54,23 @@ func DefaultRegistry() *Registry {
 
 // DiscoverAll runs all adapters and merges results. Skips adapters whose
 // ecosystem directory does not exist (empty result, not error).
+// Deduplicates skills by path+files to avoid double-reporting when multiple
+// adapters scan overlapping directories (WR-05).
 func (r *Registry) DiscoverAll(fs afero.Fs) ([]DiscoveredSkill, error) {
 	var all []DiscoveredSkill
+	seen := make(map[string]bool)
 	for _, a := range r.adapters {
 		found, err := a.Discover(fs)
 		if err != nil {
 			return nil, fmt.Errorf("adapter %s: %w", a.Kind(), err)
 		}
-		all = append(all, found...)
+		for _, s := range found {
+			key := s.Path + "|" + strings.Join(s.Files, ",")
+			if !seen[key] {
+				seen[key] = true
+				all = append(all, s)
+			}
+		}
 	}
 	return all, nil
 }

@@ -68,7 +68,11 @@ func runSign(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("reading lockfile: %w", err)
 	}
-	log.Debug().Str("artifact_id", lf.ArtifactID).Str("sha256", lf.SHA256[:12]).Msg("Lockfile loaded")
+	sha256Display := lf.SHA256
+	if len(sha256Display) > 12 {
+		sha256Display = sha256Display[:12]
+	}
+	log.Debug().Str("artifact_id", lf.ArtifactID).Str("sha256", sha256Display).Msg("Lockfile loaded")
 
 	// Step 2: Create provenance
 	stmt, err := signer.CreateProvenance(signer.ProvenanceInput{

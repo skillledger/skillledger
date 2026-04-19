@@ -1,0 +1,47 @@
+version: '3'
+
+vars:
+  CLI_MODULE: ./cli
+  SERVICE_DIR: ./service
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  cli:build:
+    dir: '{{.CLI_MODULE}}'
+    cmds:
+      - go build -o ../bin/skillledger ./cmd/skillledger
+
+  cli:test:
+    dir: '{{.CLI_MODULE}}'
+    cmds:
+      - go test ./... -v
+
+  cli:lint:
+    dir: '{{.CLI_MODULE}}'
+    cmds:
+      - golangci-lint run
+
+  service:test:
+    dir: '{{.SERVICE_DIR}}'
+    cmds:
+      - python -m pytest tests/ -v
+
+  service:lint:
+    dir: '{{.SERVICE_DIR}}'
+    cmds:
+      - ruff check src/ tests/
+      - ruff format --check src/ tests/
+
+  test:
+    deps: [cli:test, service:test]
+
+  lint:
+    deps: [cli:lint, service:lint]
+
+  schema:validate:
+    dir: '{{.CLI_MODULE}}'
+    cmds:
+      - go test ./internal/schema/... -run TestExamples -v

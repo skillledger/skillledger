@@ -1,6 +1,7 @@
 package signer
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	intoto "github.com/in-toto/attestation/go/v1"
@@ -24,8 +25,11 @@ type ProvenanceInput struct {
 // be serialized (via SerializeStatement) and wrapped in a DSSE envelope for
 // signing.
 func CreateProvenance(input ProvenanceInput) (*intoto.Statement, error) {
-	if len(input.ArtifactDigest) < 12 {
-		return nil, fmt.Errorf("artifact digest too short: need at least 12 hex chars, got %d", len(input.ArtifactDigest))
+	if len(input.ArtifactDigest) != 64 {
+		return nil, fmt.Errorf("artifact digest must be exactly 64 hex chars (SHA-256), got %d", len(input.ArtifactDigest))
+	}
+	if _, err := hex.DecodeString(input.ArtifactDigest); err != nil {
+		return nil, fmt.Errorf("artifact digest is not valid hex: %w", err)
 	}
 
 	subject := &intoto.ResourceDescriptor{

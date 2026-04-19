@@ -130,17 +130,28 @@ func TestProvenance_EmptyDigest(t *testing.T) {
 	stmt, err := CreateProvenance(input)
 	assert.Error(t, err)
 	assert.Nil(t, stmt)
-	assert.Contains(t, err.Error(), "artifact digest too short")
+	assert.Contains(t, err.Error(), "artifact digest must be exactly 64 hex chars")
 }
 
 func TestProvenance_ShortDigest(t *testing.T) {
 	input := newTestProvenanceInput()
-	input.ArtifactDigest = "abc123" // only 6 chars, need 12
+	input.ArtifactDigest = "abc123" // only 6 chars, need 64
 
 	stmt, err := CreateProvenance(input)
 	assert.Error(t, err)
 	assert.Nil(t, stmt)
-	assert.Contains(t, err.Error(), "artifact digest too short")
+	assert.Contains(t, err.Error(), "artifact digest must be exactly 64 hex chars")
+}
+
+func TestProvenance_InvalidHexDigest(t *testing.T) {
+	input := newTestProvenanceInput()
+	// 64 chars but contains non-hex characters
+	input.ArtifactDigest = "zzzz23def456789012345678901234567890123456789012345678901234abcd"
+
+	stmt, err := CreateProvenance(input)
+	assert.Error(t, err)
+	assert.Nil(t, stmt)
+	assert.Contains(t, err.Error(), "artifact digest is not valid hex")
 }
 
 func TestProvenance_InvocationID(t *testing.T) {

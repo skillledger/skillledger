@@ -1,0 +1,55 @@
+services:
+  skillledger-log:
+    build:
+      context: ./log
+      dockerfile: Dockerfile
+    ports:
+      - "2025:2025"
+    environment:
+      - LOG_PRIVATE_KEY=${LOG_PRIVATE_KEY}
+      - STORAGE_DIR=/data/tlog
+      - LISTEN_ADDR=:2025
+    volumes:
+      - log-data:/data/tlog
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2025/checkpoint"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  skillledger-service:
+    build:
+      context: ./service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - SKILLLEDGER_DATABASE_URL=postgresql+asyncpg://skillledger:skillledger@postgres:5432/skillledger
+      - SKILLLEDGER_LOG_URL=http://skillledger-log:2025
+      - SKILLLEDGER_DEBUG=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      skillledger-log:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=skillledger
+      - POSTGRES_PASSWORD=skillledger
+      - POSTGRES_DB=skillledger
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skillledger"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  log-data:
+  pg-data:

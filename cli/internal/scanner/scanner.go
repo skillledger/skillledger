@@ -3,6 +3,8 @@ package scanner
 import (
 	"fmt"
 	"io"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/skillledger/skillledger/internal/ecosystem"
@@ -118,11 +120,16 @@ func (s *Scanner) scanSkill(skill ecosystem.DiscoveredSkill) (ScanResult, error)
 	}
 
 	// Step 1: Hash all files to compute skill-level SHA-256
+	// Sort files for deterministic hash regardless of filesystem order (WR-02)
+	sortedFiles := make([]string, len(skill.Files))
+	copy(sortedFiles, skill.Files)
+	sort.Strings(sortedFiles)
+
 	var allHashes []string
 	var allContent []byte
 
-	for _, filePath := range skill.Files {
-		fullPath := skill.Path + "/" + filePath
+	for _, filePath := range sortedFiles {
+		fullPath := filepath.Join(skill.Path, filePath)
 
 		rc, err := s.fileOpener.Open(fullPath)
 		if err != nil {

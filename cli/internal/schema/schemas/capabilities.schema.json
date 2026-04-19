@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillledger.dev/schemas/v0.1/capabilities.schema.json",
+  "title": "Capability Manifest",
+  "description": "Declares permissions the skill requires. Undeclared capabilities are denied.",
+  "type": "object",
+  "properties": {
+    "filesystem": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(read|write)(:.+)?$"
+      },
+      "description": "Filesystem permissions (e.g., read, write:./data)"
+    },
+    "network": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(outbound|inbound)(:.+)?$"
+      },
+      "description": "Network permissions (e.g., outbound:*.openai.com)"
+    },
+    "secrets": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(env|file|vault)(:.+)?$"
+      },
+      "description": "Secrets access (e.g., env:API_KEY, file:/etc/secret)"
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(execute)(:.+)?$"
+      },
+      "description": "Tool execution (e.g., execute:bash, execute:python)"
+    }
+  },
+  "additionalProperties": false
+}

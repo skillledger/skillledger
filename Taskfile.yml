@@ -9,7 +9,15 @@ tasks:
     cmds:
       - task --list
 
+  schema:copy:
+    desc: Copy spec schemas into CLI for embedding
+    cmds:
+      - mkdir -p cli/internal/schema/schemas/profiles
+      - cp spec/schemas/*.json cli/internal/schema/schemas/
+      - cp spec/schemas/profiles/*.json cli/internal/schema/schemas/profiles/
+
   cli:build:
+    deps: [schema:copy]
     dir: '{{.CLI_MODULE}}'
     cmds:
       - go build -o ../bin/skillledger ./cmd/skillledger

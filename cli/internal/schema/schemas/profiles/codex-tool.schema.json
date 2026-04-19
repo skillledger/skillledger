@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillledger.dev/schemas/v0.1/profiles/codex-tool.schema.json",
+  "title": "Codex Tool Profile",
+  "description": "Profile fields for OpenAI Codex tools",
+  "type": "object",
+  "properties": {
+    "display_name": {
+      "type": "string",
+      "description": "Human-readable display name"
+    },
+    "category": {
+      "type": "string",
+      "description": "Tool category classification"
+    },
+    "mcp_servers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "command": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "description": "MCP servers bundled with this Codex tool"
+    }
+  },
+  "additionalProperties": true
+}

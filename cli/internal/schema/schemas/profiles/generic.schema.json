@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skillledger.dev/schemas/v0.1/profiles/generic.schema.json",
+  "title": "Generic Profile",
+  "description": "Profile fields for generic or unrecognized skill ecosystems",
+  "type": "object",
+  "properties": {
+    "runtime": {
+      "type": "string",
+      "description": "Runtime environment (e.g., node, python, go)"
+    },
+    "entrypoint": {
+      "type": "string",
+      "description": "Entry point file or command"
+    }
+  },
+  "additionalProperties": true
+}

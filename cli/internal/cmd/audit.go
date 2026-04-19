@@ -124,15 +124,26 @@ func runAudit(cmd *cobra.Command, args []string) error {
 
 	if outputFile != "" {
 		// Security: validate output path stays within cwd (T-02-09)
+		// Use EvalSymlinks to prevent symlink-based traversal (CR-02)
 		absPath, err := filepath.Abs(outputFile)
 		if err != nil {
 			return fmt.Errorf("resolving output path: %w", err)
 		}
+		absPath, err = filepath.EvalSymlinks(filepath.Dir(absPath))
+		if err != nil {
+			return fmt.Errorf("resolving output path symlinks: %w", err)
+		}
+		absPath = filepath.Join(absPath, filepath.Base(outputFile))
+
 		cwd, err := os.Getwd()
 		if err != nil {
 			return fmt.Errorf("getting working directory: %w", err)
 		}
-		if !strings.HasPrefix(absPath, cwd) {
+		cwd, err = filepath.EvalSymlinks(cwd)
+		if err != nil {
+			return fmt.Errorf("resolving cwd symlinks: %w", err)
+		}
+		if !strings.HasPrefix(absPath, cwd+string(os.PathSeparator)) && absPath != cwd {
 			return fmt.Errorf("output path escapes working directory")
 		}
 

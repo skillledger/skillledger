@@ -102,7 +102,12 @@ async def lookup_entry(
     artifact_id: str,
     session: AsyncSession = Depends(get_session),
 ) -> LookupResponse:
-    stmt = select(LogEntryRecord).where(LogEntryRecord.artifact_id == artifact_id)
+    stmt = (
+        select(LogEntryRecord)
+        .where(LogEntryRecord.artifact_id == artifact_id)
+        .order_by(LogEntryRecord.log_index.desc())
+        .limit(1)
+    )
     result = await session.execute(stmt)
     record = result.scalar_one_or_none()
 

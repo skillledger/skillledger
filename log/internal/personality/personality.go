@@ -115,10 +115,15 @@ func New(ctx context.Context, signer note.Signer, opts ...Option) (*Personality,
 //   - 503 with Retry-After header if the appender is under backpressure
 //   - 500 for other internal errors
 func (p *Personality) HandleAdd(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	const maxEntrySize = 16 * 1024 // 16 KB -- entries are small JSON
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxEntrySize+1))
 	if err != nil {
 		p.logger.Error().Err(err).Msg("reading request body")
 		http.Error(w, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+	if len(body) > maxEntrySize {
+		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 		return
 	}
 

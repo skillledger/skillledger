@@ -84,7 +84,7 @@ func (c *Client) PublishEntry(ctx context.Context, req *PublishRequest) (*Publis
 
 	log.Debug().Int("status", resp.StatusCode).Msg("publish response received")
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1 MB max
 	if err != nil {
 		return nil, fmt.Errorf("reading response body: %w", err)
 	}

@@ -116,9 +116,10 @@ for custom DSL policies. Use --issuer to provide OIDC issuer for allowlist match
 			return err
 		}
 
-		// Exit code 1 for deny (non-zero exit for CI/CD integration)
+		// Return error for deny decision so Cobra can handle cleanup.
+		// The root command's Execute function should translate this to exit code 1.
 		if result.Decision == "deny" {
-			os.Exit(1)
+			return fmt.Errorf("policy denied")
 		}
 		return nil
 	},

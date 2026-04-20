@@ -85,7 +85,16 @@ async def publish_entry(
         published_at=published_at,
     )
     session.add(record)
-    await session.commit()
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        # Critical: log entry exists in Merkle tree but DB record failed.
+        # This inconsistency requires manual reconciliation.
+        raise HTTPException(
+            status_code=500,
+            detail="Entry added to log but metadata save failed. Contact admin.",
+        )
 
     return PublishResponse(log_index=log_index, artifact_id=entry.artifact_id)
 

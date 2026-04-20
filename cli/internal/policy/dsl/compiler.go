@@ -120,6 +120,12 @@ func parseOperator(expr string) (string, string, error) {
 		return "", "", fmt.Errorf("invalid operator expression: %q (empty argument)", expr)
 	}
 
+	// Security: reject arguments containing characters that could enable Rego injection.
+	// Capability strings should only contain printable ASCII without quotes or backslashes.
+	if strings.ContainsAny(arg, "\\\n\r\t\"") {
+		return "", "", fmt.Errorf("invalid operator argument: %q (contains disallowed characters)", arg)
+	}
+
 	return op, arg, nil
 }
 

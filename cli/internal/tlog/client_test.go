@@ -49,7 +49,7 @@ func TestPublishEntry_Success(t *testing.T) {
 	resp, err := c.PublishEntry(context.Background(), &PublishRequest{
 		ArtifactID:     "test-artifact",
 		SHA256:         "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-		ContentAddress: "sha256:abc123",
+		ContentAddress: "sha256-abc123",
 		Publisher:      "test@example.com",
 	})
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestPublish_ValidInput(t *testing.T) {
 	result, err := Publish(context.Background(), PublishInput{
 		ArtifactID:     "my-skill",
 		SHA256:         "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-		ContentAddress: "sha256:abcdef12",
+		ContentAddress: "sha256-abcdef12",
 		Publisher:      "dev@example.com",
 		ServiceURL:     server.URL,
 	})
@@ -126,7 +126,7 @@ func TestPublish_EmptyArtifactID(t *testing.T) {
 	_, err := Publish(context.Background(), PublishInput{
 		ArtifactID:     "",
 		SHA256:         "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-		ContentAddress: "sha256:abc",
+		ContentAddress: "sha256-abc",
 		Publisher:      "dev@example.com",
 	})
 	require.Error(t, err)
@@ -137,7 +137,7 @@ func TestPublish_InvalidSHA256(t *testing.T) {
 	_, err := Publish(context.Background(), PublishInput{
 		ArtifactID:     "my-skill",
 		SHA256:         "not-valid-hex",
-		ContentAddress: "sha256:abc",
+		ContentAddress: "sha256-abc",
 		Publisher:      "dev@example.com",
 	})
 	require.Error(t, err)
@@ -152,14 +152,14 @@ func TestPublish_EmptyContentAddress(t *testing.T) {
 		Publisher:      "dev@example.com",
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "content address is required")
+	assert.Contains(t, err.Error(), "content address must start with \"sha256-\"")
 }
 
 func TestPublish_EmptyPublisher(t *testing.T) {
 	_, err := Publish(context.Background(), PublishInput{
 		ArtifactID:     "my-skill",
 		SHA256:         "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-		ContentAddress: "sha256:abc",
+		ContentAddress: "sha256-abc",
 		Publisher:      "",
 	})
 	require.Error(t, err)

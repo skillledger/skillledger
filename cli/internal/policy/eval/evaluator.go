@@ -3,6 +3,7 @@ package eval
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/open-policy-agent/opa/v1/rego"
 )
@@ -89,11 +90,13 @@ func extractStringSet(val map[string]any, key string) []string {
 	case []any:
 		return anySliceToStrings(v)
 	case map[string]any:
-		// OPA sets are represented as maps with true values
+		// OPA sets are represented as maps with true values.
+		// Sort for deterministic output across runs.
 		strs := make([]string, 0, len(v))
 		for k := range v {
 			strs = append(strs, k)
 		}
+		sort.Strings(strs)
 		return strs
 	default:
 		return nil

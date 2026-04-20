@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 var sha256Pattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
@@ -34,8 +35,8 @@ func Publish(ctx context.Context, input PublishInput) (*PublishResult, error) {
 	if !sha256Pattern.MatchString(input.SHA256) {
 		return nil, fmt.Errorf("SHA256 must be 64 lowercase hex characters")
 	}
-	if input.ContentAddress == "" {
-		return nil, fmt.Errorf("content address is required")
+	if !strings.HasPrefix(input.ContentAddress, "sha256-") {
+		return nil, fmt.Errorf("content address must start with \"sha256-\"")
 	}
 	if input.Publisher == "" {
 		return nil, fmt.Errorf("publisher identity is required")

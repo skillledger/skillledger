@@ -17,7 +17,7 @@ from skillledger_service.models import Base  # noqa: E402
 VALID_ENTRY = {
     "artifact_id": "test-skill-v1.0.0",
     "sha256": "a" * 64,
-    "content_address": "sha256:aaaa",
+    "content_address": "sha256-aaaa",
     "publisher": "test-publisher",
 }
 

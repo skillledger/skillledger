@@ -16,6 +16,8 @@ rules:
   filesystem:
     - deny: contains("write")
       message: "Skills must not have write access"
+    - warn: contains("read:/etc")
+      message: "Reading /etc is suspicious"
   network:
     - deny: any("outbound")
       except: ["outbound:*.anthropic.com"]
@@ -28,6 +30,8 @@ rules:
   filesystem:
     - deny: contains("write")
       message: "Skills must not have write access"
+    - warn: contains("read:/etc")
+      message: "Reading /etc is suspicious"
 publishers:
   allowlist:
     - cert-identity: "https://github.com/myorg/*"

@@ -1,0 +1,60 @@
+name: 'SkillLedger Build'
+description: 'Build a skill artifact with deterministic, content-addressed output'
+inputs:
+  version:
+    description: 'SkillLedger CLI version to install (tag name, e.g., v0.1.0)'
+    required: false
+    default: 'latest'
+  skill-dir:
+    description: 'Path to skill source directory containing skillledger.yaml'
+    required: true
+outputs:
+  artifact-path:
+    description: 'Path to the built artifact (.tar.gz)'
+    value: ${{ steps.build.outputs.artifact-path }}
+  artifact-hash:
+    description: 'SHA-256 hash of the built artifact'
+    value: ${{ steps.build.outputs.artifact-hash }}
+  lockfile-path:
+    description: 'Path to skill-lock.json'
+    value: ${{ steps.build.outputs.lockfile-path }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Install SkillLedger CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+        VERSION="${{ inputs.version }}"
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
+        if [ "$VERSION" = "latest" ]; then
+          DOWNLOAD_URL="https://github.com/skillledger/skillledger/releases/latest/download/skillledger_${OS}_${ARCH}"
+        else
+          DOWNLOAD_URL="https://github.com/skillledger/skillledger/releases/download/${VERSION}/skillledger_${OS}_${ARCH}"
+        fi
+        curl -sSL "$DOWNLOAD_URL" -o /usr/local/bin/skillledger || {
+          echo "::warning::Failed to download pre-built binary. Building from source..."
+          cd "$GITHUB_WORKSPACE"
+          go build -trimpath -ldflags="-s -w" -o /usr/local/bin/skillledger ./cli/
+        }
+        chmod +x /usr/local/bin/skillledger
+        echo "Installed skillledger $(skillledger --version 2>/dev/null || echo 'unknown version')"
+
+    - name: Build artifact
+      id: build
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "${{ inputs.skill-dir }}"
+        skillledger build
+        ARTIFACT=$(find dist -name '*.tar.gz' -type f | head -1)
+        if [ -z "$ARTIFACT" ]; then
+          echo "::error::No artifact produced by skillledger build"
+          exit 1
+        fi
+        HASH=$(sha256sum "$ARTIFACT" | cut -d' ' -f1)
+        echo "artifact-path=${ARTIFACT}" >> "$GITHUB_OUTPUT"
+        echo "artifact-hash=${HASH}" >> "$GITHUB_OUTPUT"
+        echo "lockfile-path=skill-lock.json" >> "$GITHUB_OUTPUT"
+        echo "Built artifact: $ARTIFACT (sha256: $HASH)"

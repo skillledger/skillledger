@@ -1,13 +1,32 @@
+from functools import lru_cache
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from skillledger_service.config import Settings
 
-settings = Settings()
 
-engine = create_async_engine(settings.database_url, echo=settings.debug)
-async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+@lru_cache
+def get_engine():
+    settings = get_settings()
+    return create_async_engine(settings.database_url, echo=settings.debug)
+
+
+@lru_cache
+def get_async_session_factory():
+    return async_sessionmaker(get_engine(), class_=AsyncSession, expire_on_commit=False)
+
+
+# Module-level aliases for backward compatibility (used by tests importing engine directly).
+engine = get_engine()
+async_session = get_async_session_factory()
 
 
 async def get_session():
-    async with async_session() as session:
+    factory = get_async_session_factory()
+    async with factory() as session:
         yield session

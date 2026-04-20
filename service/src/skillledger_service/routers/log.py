@@ -6,12 +6,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from skillledger_service.config import Settings
-from skillledger_service.db import get_session
+from skillledger_service.db import get_session, get_settings
 from skillledger_service.models.artifact import LogEntryRecord
 
 router = APIRouter(prefix="/log", tags=["transparency-log"])
-settings = Settings()
 
 
 class ArtifactEntry(BaseModel):
@@ -52,7 +50,7 @@ async def publish_entry(
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(f"{settings.log_url}/add", json=payload)
+            resp = await client.post(f"{get_settings().log_url}/add", json=payload)
     except httpx.ConnectError:
         raise HTTPException(status_code=502, detail="Log service unavailable")
     except httpx.TimeoutException:

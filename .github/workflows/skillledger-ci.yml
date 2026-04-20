@@ -1,0 +1,78 @@
+name: SkillLedger CI
+on:
+  workflow_call:
+    inputs:
+      skill-dir:
+        description: 'Path to skill source directory'
+        required: true
+        type: string
+      service-url:
+        description: 'SkillLedger service URL'
+        required: false
+        type: string
+        default: 'https://log.skillledger.dev'
+      cli-version:
+        description: 'SkillLedger CLI version'
+        required: false
+        type: string
+        default: 'latest'
+      policy-preset:
+        description: 'Policy preset for verification'
+        required: false
+        type: string
+        default: 'moderate'
+      skip-tlog:
+        description: 'Skip transparency log check'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      SKILLLEDGER_API_KEY:
+        description: 'API key for publishing to transparency log'
+        required: false
+
+jobs:
+  build-sign-verify:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for Sigstore keyless signing
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build artifact
+        uses: ./.github/actions/build
+        id: build
+        with:
+          skill-dir: ${{ inputs.skill-dir }}
+          version: ${{ inputs.cli-version }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign artifact
+        uses: ./.github/actions/sign
+        id: sign
+        with:
+          artifact-path: ${{ steps.build.outputs.artifact-path }}
+          lockfile-path: ${{ steps.build.outputs.lockfile-path }}
+
+      - name: Publish to transparency log
+        if: secrets.SKILLLEDGER_API_KEY != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          skillledger publish \
+            --artifact "${{ steps.build.outputs.artifact-path }}" \
+            --service-url "${{ inputs.service-url }}" \
+            --api-key "${{ secrets.SKILLLEDGER_API_KEY }}"
+        env:
+          SKILLLEDGER_API_KEY: ${{ secrets.SKILLLEDGER_API_KEY }}
+
+      - name: Verify artifact
+        uses: ./.github/actions/verify
+        with:
+          artifact-path: ${{ steps.build.outputs.artifact-path }}
+          service-url: ${{ inputs.service-url }}
+          policy-preset: ${{ inputs.policy-preset }}
+          skip-tlog: ${{ inputs.skip-tlog && 'true' || 'false' }}

@@ -32,6 +32,9 @@ func Parse(data []byte) (*Policy, error) {
 			if hasDeny == hasWarn {
 				return nil, fmt.Errorf("rule %s[%d]: exactly one of deny or warn must be set", category, i)
 			}
+			if r.Message == "" {
+				return nil, fmt.Errorf("rule %s[%d]: message field is required", category, i)
+			}
 		}
 	}
 

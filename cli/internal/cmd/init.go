@@ -47,7 +47,7 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("getting working directory: %w", err)
 		}
-		if !strings.HasPrefix(absPath, cwd) {
+		if !strings.HasPrefix(absPath, cwd+string(os.PathSeparator)) && absPath != cwd {
 			return fmt.Errorf("output path escapes working directory")
 		}
 

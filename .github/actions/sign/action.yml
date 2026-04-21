@@ -39,5 +39,9 @@ runs:
           # Try alternative bundle location
           BUNDLE="$(dirname "$ARTIFACT")/$(basename "$ARTIFACT" .tar.gz).sigstore.json"
         fi
+        if [ ! -f "$BUNDLE" ]; then
+          echo "::error::Sigstore bundle not found after signing"
+          exit 1
+        fi
         echo "bundle-path=${BUNDLE}" >> "$GITHUB_OUTPUT"
         echo "Signed artifact. Bundle: $BUNDLE"

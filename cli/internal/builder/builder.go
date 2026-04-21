@@ -129,7 +129,7 @@ func (b *Builder) Build(sourceDir, outputDir string) (*BuildResult, error) {
 		ArtifactID:     m.ID,
 		Version:        m.Version,
 		SHA256:         hash,
-		ContentAddress: filename,
+		ContentAddress: "sha256-" + hash,
 		BuiltAt:        b.epoch.UTC().Format(time.RFC3339),
 		Source: LockfileSource{
 			Repository: m.Source.Repository,

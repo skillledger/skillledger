@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 import httpx
@@ -10,6 +11,8 @@ from skillledger_service.auth import get_current_publisher
 from skillledger_service.db import get_session, get_settings
 from skillledger_service.models.artifact import LogEntryRecord
 from skillledger_service.models.publisher import Publisher
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/log", tags=["transparency-log"])
 
@@ -92,6 +95,10 @@ async def publish_entry(
         await session.rollback()
         # Critical: log entry exists in Merkle tree but DB record failed.
         # This inconsistency requires manual reconciliation.
+        logger.exception(
+            "DB commit failed after log entry added",
+            extra={"artifact_id": entry.artifact_id, "log_index": log_index},
+        )
         raise HTTPException(
             status_code=500,
             detail="Entry added to log but metadata save failed. Contact admin.",

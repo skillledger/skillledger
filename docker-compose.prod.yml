@@ -1,0 +1,44 @@
+# Production overlay for SkillLedger hosted service
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Prerequisites:
+#   - Set SKILLLEDGER_DOMAIN (default: log.skillledger.dev)
+#   - Set SKILLLEDGER_ADMIN_API_KEY for bootstrap publisher creation
+#   - Set POSTGRES_PASSWORD for database security
+#   - DNS A record pointing SKILLLEDGER_DOMAIN to server IP
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - skillledger-service
+    environment:
+      - DOMAIN=${SKILLLEDGER_DOMAIN:-log.skillledger.dev}
+
+  skillledger-service:
+    ports:
+      - "127.0.0.1:8000:8000"  # Only accessible via Caddy, not directly
+    environment:
+      - SKILLLEDGER_DEBUG=false
+      - SKILLLEDGER_ADMIN_API_KEY=${SKILLLEDGER_ADMIN_API_KEY:?Set SKILLLEDGER_ADMIN_API_KEY}
+      - SKILLLEDGER_CORS_ORIGINS=["https://${SKILLLEDGER_DOMAIN:-log.skillledger.dev}"]
+
+  skillledger-log:
+    ports:
+      - "127.0.0.1:2025:2025"  # Internal only
+
+  postgres:
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+
+volumes:
+  caddy-data:
+  caddy-config:

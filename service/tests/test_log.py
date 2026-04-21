@@ -13,7 +13,7 @@ os.environ["SKILLLEDGER_LOG_URL"] = "http://fake-log:2025"
 os.environ.setdefault("SKILLLEDGER_ADMIN_API_KEY", "test-admin-key-log")
 
 from skillledger_service.auth import generate_api_key, hash_api_key  # noqa: E402
-from skillledger_service.db import engine  # noqa: E402
+from skillledger_service.db import get_engine  # noqa: E402
 from skillledger_service.main import create_app  # noqa: E402
 from skillledger_service.models import Base  # noqa: E402
 from skillledger_service.models.publisher import APIKey, Publisher  # noqa: E402
@@ -22,7 +22,6 @@ VALID_ENTRY = {
     "artifact_id": "test-skill-v1.0.0",
     "sha256": "a" * 64,
     "content_address": "sha256-aaaa",
-    "publisher": "test-publisher",
 }
 
 
@@ -31,7 +30,7 @@ def _reset_db():
     """Drop and recreate all tables before each test for isolation."""
 
     async def _reset():
-        async with engine.begin() as conn:
+        async with get_engine().begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
 

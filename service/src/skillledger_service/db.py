@@ -21,10 +21,6 @@ def get_async_session_factory():
     return async_sessionmaker(get_engine(), class_=AsyncSession, expire_on_commit=False)
 
 
-# Module-level aliases for backward compatibility (used by tests importing engine directly).
-engine = get_engine()
-async_session = get_async_session_factory()
-
 
 async def get_session():
     factory = get_async_session_factory()

@@ -8,7 +8,7 @@ os.environ.setdefault("SKILLLEDGER_DATABASE_URL", "sqlite+aiosqlite:///:memory:"
 os.environ.setdefault("SKILLLEDGER_LOG_URL", "http://fake-log:2025")
 os.environ.setdefault("SKILLLEDGER_ADMIN_API_KEY", "test-admin-bootstrap-key")
 
-from skillledger_service.db import engine, get_settings  # noqa: E402
+from skillledger_service.db import get_engine, get_settings  # noqa: E402
 from skillledger_service.main import create_app  # noqa: E402
 from skillledger_service.models import Base  # noqa: E402
 
@@ -16,7 +16,7 @@ from skillledger_service.models import Base  # noqa: E402
 @pytest.fixture(autouse=True)
 def _reset_db():
     async def _reset():
-        async with engine.begin() as conn:
+        async with get_engine().begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
     loop = asyncio.new_event_loop()

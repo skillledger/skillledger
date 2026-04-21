@@ -18,6 +18,7 @@ import (
 type Client struct {
 	serviceURL string
 	http       *http.Client
+	apiKey     string
 }
 
 // Option configures the Client.
@@ -31,6 +32,11 @@ func WithServiceURL(u string) Option {
 // WithHTTPClient overrides the default HTTP client.
 func WithHTTPClient(h *http.Client) Option {
 	return func(c *Client) { c.http = h }
+}
+
+// WithAPIKey sets the Bearer token used for authenticated publish requests.
+func WithAPIKey(key string) Option {
+	return func(c *Client) { c.apiKey = key }
 }
 
 // NewClient creates a transparency log client with the given options.
@@ -75,6 +81,9 @@ func (c *Client) PublishEntry(ctx context.Context, req *PublishRequest) (*Publis
 		return nil, fmt.Errorf("creating HTTP request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 
 	resp, err := c.http.Do(httpReq)
 	if err != nil {

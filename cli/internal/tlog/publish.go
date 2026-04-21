@@ -17,6 +17,7 @@ type PublishInput struct {
 	ContentAddress string
 	Publisher      string
 	ServiceURL     string
+	APIKey         string
 }
 
 // PublishResult holds the outcome of a successful publish operation.
@@ -47,7 +48,11 @@ func Publish(ctx context.Context, input PublishInput) (*PublishResult, error) {
 		serviceURL = "http://localhost:8000"
 	}
 
-	client := NewClient(WithServiceURL(serviceURL))
+	opts := []Option{WithServiceURL(serviceURL)}
+	if input.APIKey != "" {
+		opts = append(opts, WithAPIKey(input.APIKey))
+	}
+	client := NewClient(opts...)
 	resp, err := client.PublishEntry(ctx, &PublishRequest{
 		ArtifactID:     input.ArtifactID,
 		SHA256:         input.SHA256,

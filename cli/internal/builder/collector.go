@@ -113,7 +113,17 @@ func (c *Collector) Collect(sourceDir string) ([]FileEntry, error) {
 		}
 
 		// Skip symlinks and non-regular files.
-		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		// afero.Walk resolves symlinks before calling us, so info.Mode()
+		// reflects the target, not the link. Use LstatIfPossible to get
+		// the real file mode and detect symlinks before resolution.
+		if lstater, ok := c.fs.(afero.Lstater); ok {
+			if linfo, lstatCalled, lerr := lstater.LstatIfPossible(path); lerr == nil && lstatCalled {
+				if linfo.Mode()&os.ModeSymlink != 0 {
+					return nil
+				}
+			}
+		}
+		if !info.Mode().IsRegular() {
 			return nil
 		}
 

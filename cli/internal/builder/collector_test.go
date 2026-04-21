@@ -1,6 +1,7 @@
 package builder_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -93,6 +94,33 @@ func TestCollector_EmptyDir(t *testing.T) {
 	entries, err := c.Collect("/empty")
 	require.NoError(t, err)
 	assert.Empty(t, entries)
+}
+
+func TestCollector_SkipsSymlinks(t *testing.T) {
+	// Use OsFs on a real temp directory because MemMapFs doesn't support symlinks.
+	tmpDir := t.TempDir()
+	srcDir := filepath.Join(tmpDir, "src")
+	require.NoError(t, os.MkdirAll(srcDir, 0o755))
+
+	// Create a real file.
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "real.txt"), []byte("real"), 0o644))
+
+	// Create a target file outside the source tree that the symlink points to.
+	targetFile := filepath.Join(tmpDir, "secret.txt")
+	require.NoError(t, os.WriteFile(targetFile, []byte("secret"), 0o644))
+
+	// Create a symlink inside the source tree pointing to the external target.
+	require.NoError(t, os.Symlink(targetFile, filepath.Join(srcDir, "link.txt")))
+
+	fs := afero.NewOsFs()
+	c := builder.NewCollector(fs)
+	entries, err := c.Collect(srcDir)
+	require.NoError(t, err)
+
+	// Only the real file should be collected; the symlink must be skipped.
+	require.Len(t, entries, 1)
+	assert.Equal(t, "real.txt", entries[0].RelPath)
+	assert.Equal(t, "real", string(entries[0].Content))
 }
 
 func TestCollector_MaxFileSize(t *testing.T) {

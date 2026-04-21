@@ -114,10 +114,9 @@ def test_publish_requires_auth(client):
             "content_address": "sha256-aaaa",
             "publisher": "test-publisher",
         })
-    # NOTE: This test validates auth requirement. Currently returns 200 because
-    # auth is not yet wired to the publish route (Plan 02 will add that).
-    # Once Plan 02 wires auth, this should return 403 (no credentials provided).
-    assert response.status_code in (200, 403)
+    # Auth is now wired to publish route (Plan 02).
+    # HTTPBearer returns 401/403 when no credentials header is present.
+    assert response.status_code in (401, 403)
 
 
 def test_publish_rejects_invalid_key(client):
@@ -133,6 +132,5 @@ def test_publish_rejects_invalid_key(client):
             },
             headers={"Authorization": "Bearer invalid-key-xyz"},
         )
-    # NOTE: Currently returns 200 because auth is not yet wired to publish route.
-    # Once Plan 02 wires auth, this should return 401.
-    assert response.status_code in (200, 401)
+    # Auth is now wired to publish route (Plan 02).
+    assert response.status_code == 401

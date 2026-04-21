@@ -27,6 +27,7 @@ services:
     environment:
       - SKILLLEDGER_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-skillledger}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-skillledger}
       - SKILLLEDGER_LOG_URL=http://skillledger-log:2025
+      - SKILLLEDGER_ADMIN_API_KEY=${SKILLLEDGER_ADMIN_API_KEY:-dev-admin-key-do-not-use-in-prod}
       - SKILLLEDGER_DEBUG=false
     depends_on:
       postgres:

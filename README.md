@@ -2,6 +2,83 @@
 
 This is a practical guide to using SkillLedger. For the full backstory, threat model, and business context, see [project.md](project.md).
 
+## Prerequisites
+
+- **Go 1.26+** — required to build the CLI
+- **Docker & Docker Compose** — required only if you want to run the transparency log and hosted service
+- **Python 3.12+** — required only if developing or running the service outside Docker
+- A GitHub or Google account (for Sigstore keyless signing)
+
+## Installation
+
+### Install the CLI
+
+Build from source:
+
+```bash
+git clone https://github.com/skillledger/skillledger.git
+cd skillledger/cli
+go build -o skillledger ./cmd/skillledger
+```
+
+Move the binary somewhere on your `$PATH`:
+
+```bash
+sudo mv skillledger /usr/local/bin/
+```
+
+Verify the installation:
+
+```bash
+skillledger --help
+```
+
+### Set up the transparency log (optional)
+
+The transparency log is only needed if you plan to publish and verify artifacts against a shared log. For local-only workflows (audit, build, sign), you can skip this.
+
+```bash
+cd skillledger/
+
+# Set required env vars
+export POSTGRES_PASSWORD=$(openssl rand -hex 32)
+
+# Start the stack (service + log + postgres)
+docker compose up -d
+```
+
+This starts:
+- **skillledger-service** (FastAPI) at `http://localhost:8000`
+- **skillledger-log** (Tessera personality) at `http://localhost:2025`
+- **PostgreSQL** at `localhost:5432`
+
+Check that everything is running:
+
+```bash
+docker compose ps
+curl -f http://localhost:8000/docs    # FastAPI swagger docs
+curl -f http://localhost:2025/checkpoint  # Log health
+```
+
+### Create a publisher account (optional)
+
+If you're running your own log and want to publish artifacts:
+
+```bash
+# Create a publisher
+curl -X POST http://localhost:8000/publishers \
+  -H "Authorization: Bearer dev-admin-key-do-not-use-in-prod" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-org", "contact_email": "security@example.com"}'
+
+# Generate an API key
+curl -X POST http://localhost:8000/publishers/1/keys \
+  -H "Authorization: Bearer dev-admin-key-do-not-use-in-prod"
+# Save the returned raw_key — it's shown only once.
+
+export SKILLLEDGER_API_KEY=<your-raw-key>
+```
+
 ## Quick Start
 
 ### 1. Audit your installed skills

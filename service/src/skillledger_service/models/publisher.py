@@ -14,7 +14,7 @@ class Publisher(Base):
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     contact_email: Mapped[str] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.datetime.now(datetime.timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     api_keys: Mapped[list["APIKey"]] = relationship(back_populates="publisher")
@@ -28,7 +28,7 @@ class APIKey(Base):
     key_prefix: Mapped[str] = mapped_column(String(8), nullable=False)
     publisher_id: Mapped[int] = mapped_column(ForeignKey("publishers.id"), nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.datetime.now(datetime.timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     publisher: Mapped["Publisher"] = relationship(back_populates="api_keys")

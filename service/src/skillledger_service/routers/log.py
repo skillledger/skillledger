@@ -18,7 +18,7 @@ class ArtifactEntry(BaseModel):
     artifact_id: str = Field(..., min_length=1)
     sha256: str = Field(..., pattern=r"^[a-f0-9]{64}$")
     content_address: str = Field(..., min_length=1)
-    publisher: str = Field(..., min_length=1)
+    # publisher is derived from authentication, not request body
 
 
 class PublishResponse(BaseModel):

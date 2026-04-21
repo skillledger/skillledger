@@ -58,16 +58,17 @@ jobs:
           lockfile-path: ${{ steps.build.outputs.lockfile-path }}
 
       - name: Publish to transparency log
-        if: secrets.SKILLLEDGER_API_KEY != ''
+        if: env.HAS_SKILLLEDGER_KEY != ''
         shell: bash
+        env:
+          HAS_SKILLLEDGER_KEY: ${{ secrets.SKILLLEDGER_API_KEY }}
+          SKILLLEDGER_API_KEY: ${{ secrets.SKILLLEDGER_API_KEY }}
         run: |
           set -euo pipefail
           skillledger publish \
             --artifact "${{ steps.build.outputs.artifact-path }}" \
             --service-url "${{ inputs.service-url }}" \
             --api-key "${{ secrets.SKILLLEDGER_API_KEY }}"
-        env:
-          SKILLLEDGER_API_KEY: ${{ secrets.SKILLLEDGER_API_KEY }}
 
       - name: Verify artifact
         uses: ./.github/actions/verify

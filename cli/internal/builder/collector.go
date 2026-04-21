@@ -83,6 +83,10 @@ func NewCollector(fs afero.Fs, opts ...Option) *Collector {
 // via WithIgnorePatterns, and a .skillledgerignore file in sourceDir (if present).
 // Symlinks and non-regular files are skipped.
 func (c *Collector) Collect(sourceDir string) ([]FileEntry, error) {
+	// Use a local copy of ignore patterns so that .skillledgerignore entries
+	// from one Collect call do not accumulate across subsequent calls.
+	patterns := append([]string(nil), c.ignorePatterns...)
+
 	// Parse .skillledgerignore if it exists.
 	ignorePath := filepath.Join(sourceDir, ".skillledgerignore")
 	if data, err := afero.ReadFile(c.fs, ignorePath); err == nil {
@@ -92,7 +96,7 @@ func (c *Collector) Collect(sourceDir string) ([]FileEntry, error) {
 			if line == "" || strings.HasPrefix(line, "#") {
 				continue
 			}
-			c.ignorePatterns = append(c.ignorePatterns, line)
+			patterns = append(patterns, line)
 		}
 	}
 
@@ -124,7 +128,7 @@ func (c *Collector) Collect(sourceDir string) ([]FileEntry, error) {
 			return fmt.Errorf("path traversal detected: %s", relSlash)
 		}
 
-		if c.isIgnored(relSlash) {
+		if isIgnored(relSlash, patterns) {
 			return nil
 		}
 
@@ -158,9 +162,9 @@ func (c *Collector) Collect(sourceDir string) ([]FileEntry, error) {
 	return entries, nil
 }
 
-// isIgnored checks whether relPath matches any of the configured ignore patterns.
-func (c *Collector) isIgnored(relPath string) bool {
-	for _, pattern := range c.ignorePatterns {
+// isIgnored checks whether relPath matches any of the supplied ignore patterns.
+func isIgnored(relPath string, patterns []string) bool {
+	for _, pattern := range patterns {
 		// Handle "dir/**" glob patterns.
 		if strings.HasSuffix(pattern, "/**") {
 			prefix := strings.TrimSuffix(pattern, "/**")

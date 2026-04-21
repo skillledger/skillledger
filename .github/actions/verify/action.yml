@@ -1,0 +1,49 @@
+name: 'SkillLedger Verify'
+description: 'Verify a skill artifact against transparency log and policy'
+inputs:
+  artifact-path:
+    description: 'Path to the artifact to verify'
+    required: true
+  service-url:
+    description: 'SkillLedger transparency log service URL'
+    required: false
+    default: 'https://log.skillledger.dev'
+  policy-preset:
+    description: 'Policy preset to apply (strict, moderate, permissive)'
+    required: false
+    default: 'moderate'
+  skip-tlog:
+    description: 'Skip transparency log check (for offline/local testing)'
+    required: false
+    default: 'false'
+outputs:
+  status:
+    description: 'Verification result (pass or fail)'
+    value: ${{ steps.verify.outputs.status }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Verify artifact
+      id: verify
+      shell: bash
+      run: |
+        set -euo pipefail
+        ARTIFACT="${{ inputs.artifact-path }}"
+        if [ ! -f "$ARTIFACT" ]; then
+          echo "::error::Artifact not found at $ARTIFACT"
+          exit 1
+        fi
+
+        ARGS=(verify --artifact "$ARTIFACT" --preset "${{ inputs.policy-preset }}" --service-url "${{ inputs.service-url }}")
+        if [ "${{ inputs.skip-tlog }}" = "true" ]; then
+          ARGS+=(--skip-tlog)
+        fi
+
+        if skillledger "${ARGS[@]}"; then
+          echo "status=pass" >> "$GITHUB_OUTPUT"
+          echo "::notice::Verification PASSED for $ARTIFACT"
+        else
+          echo "status=fail" >> "$GITHUB_OUTPUT"
+          echo "::error::Verification FAILED for $ARTIFACT"
+          exit 1
+        fi

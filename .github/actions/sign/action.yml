@@ -1,0 +1,43 @@
+name: 'SkillLedger Sign'
+description: 'Sign a skill artifact using Sigstore keyless signing'
+inputs:
+  artifact-path:
+    description: 'Path to the built artifact to sign'
+    required: true
+  lockfile-path:
+    description: 'Path to skill-lock.json'
+    required: true
+outputs:
+  bundle-path:
+    description: 'Path to the Sigstore bundle (.sigstore.json)'
+    value: ${{ steps.sign.outputs.bundle-path }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Verify cosign is installed
+      shell: bash
+      run: |
+        if ! command -v cosign &>/dev/null; then
+          echo "::error::cosign not found. Add sigstore/cosign-installer@v3 before this action."
+          exit 1
+        fi
+        echo "cosign version: $(cosign version 2>&1 | head -1)"
+
+    - name: Sign artifact
+      id: sign
+      shell: bash
+      run: |
+        set -euo pipefail
+        ARTIFACT="${{ inputs.artifact-path }}"
+        if [ ! -f "$ARTIFACT" ]; then
+          echo "::error::Artifact not found at $ARTIFACT"
+          exit 1
+        fi
+        skillledger sign --artifact "$ARTIFACT" --lockfile "${{ inputs.lockfile-path }}"
+        BUNDLE="${ARTIFACT}.sigstore.json"
+        if [ ! -f "$BUNDLE" ]; then
+          # Try alternative bundle location
+          BUNDLE="$(dirname "$ARTIFACT")/$(basename "$ARTIFACT" .tar.gz).sigstore.json"
+        fi
+        echo "bundle-path=${BUNDLE}" >> "$GITHUB_OUTPUT"
+        echo "Signed artifact. Bundle: $BUNDLE"

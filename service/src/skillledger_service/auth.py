@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import secrets
 
 from fastapi import Depends, HTTPException, Security
@@ -55,9 +56,9 @@ async def get_admin_or_publisher(
     token = credentials.credentials
     settings = get_settings()
 
-    # Check admin bootstrap key
-    if settings.admin_api_key and token == settings.admin_api_key:
+    # Check admin bootstrap key (constant-time comparison to prevent timing attacks)
+    if settings.admin_api_key and hmac.compare_digest(token, settings.admin_api_key):
         return None  # None signals admin access (no publisher context)
 
-    # Fall back to publisher key lookup
-    return await get_current_publisher(credentials, session)
+    # No fallback -- admin endpoints require the admin key
+    raise HTTPException(status_code=403, detail="Admin access required")

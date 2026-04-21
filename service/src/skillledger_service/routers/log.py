@@ -6,8 +6,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from skillledger_service.auth import get_current_publisher
 from skillledger_service.db import get_session, get_settings
 from skillledger_service.models.artifact import LogEntryRecord
+from skillledger_service.models.publisher import Publisher
 
 router = APIRouter(prefix="/log", tags=["transparency-log"])
 
@@ -36,6 +38,7 @@ class LookupResponse(BaseModel):
 @router.post("/publish", response_model=PublishResponse)
 async def publish_entry(
     entry: ArtifactEntry,
+    publisher: Publisher = Depends(get_current_publisher),
     session: AsyncSession = Depends(get_session),
 ) -> PublishResponse:
     published_at = datetime.now(timezone.utc)
@@ -44,7 +47,7 @@ async def publish_entry(
         "artifact_id": entry.artifact_id,
         "sha256": entry.sha256,
         "content_address": entry.content_address,
-        "publisher": entry.publisher,
+        "publisher": publisher.name,
         "published_at": published_at.isoformat(),
     }
 
@@ -79,7 +82,7 @@ async def publish_entry(
         sha256=entry.sha256,
         content_address=entry.content_address,
         log_index=log_index,
-        publisher=entry.publisher,
+        publisher=publisher.name,
         published_at=published_at,
     )
     session.add(record)

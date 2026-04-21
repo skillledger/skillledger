@@ -8,11 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/afero"
 	"github.com/skillledger/skillledger/internal/builder"
 	"github.com/skillledger/skillledger/internal/canon"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var testFs = afero.NewOsFs()
 
 func newTestLockfile() *builder.Lockfile {
 	return &builder.Lockfile{
@@ -35,9 +38,9 @@ func TestLockfile_ContainsHash(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "skill-lock.json")
 
-	require.NoError(t, builder.WriteLockfile(path, lf))
+	require.NoError(t, builder.WriteLockfile(testFs, path, lf))
 
-	got, err := builder.ReadLockfile(path)
+	got, err := builder.ReadLockfile(testFs, path)
 	require.NoError(t, err)
 
 	assert.Equal(t, lf.SHA256, got.SHA256)
@@ -50,7 +53,7 @@ func TestLockfile_ProvenanceField(t *testing.T) {
 	lf := newTestLockfile()
 	lf.Provenance = ""
 	path1 := filepath.Join(dir, "no-prov.json")
-	require.NoError(t, builder.WriteLockfile(path1, lf))
+	require.NoError(t, builder.WriteLockfile(testFs, path1, lf))
 
 	raw, err := os.ReadFile(path1)
 	require.NoError(t, err)
@@ -63,7 +66,7 @@ func TestLockfile_ProvenanceField(t *testing.T) {
 	// Non-empty provenance should be present.
 	lf.Provenance = "intoto:sha256:abc"
 	path2 := filepath.Join(dir, "with-prov.json")
-	require.NoError(t, builder.WriteLockfile(path2, lf))
+	require.NoError(t, builder.WriteLockfile(testFs, path2, lf))
 
 	raw2, err := os.ReadFile(path2)
 	require.NoError(t, err)
@@ -82,7 +85,7 @@ func TestLockfile_LogEntryIDField(t *testing.T) {
 	lf := newTestLockfile()
 	lf.LogEntryID = ""
 	path1 := filepath.Join(dir, "no-log.json")
-	require.NoError(t, builder.WriteLockfile(path1, lf))
+	require.NoError(t, builder.WriteLockfile(testFs, path1, lf))
 
 	raw, err := os.ReadFile(path1)
 	require.NoError(t, err)
@@ -95,7 +98,7 @@ func TestLockfile_LogEntryIDField(t *testing.T) {
 	// Non-empty log_entry_id should be present.
 	lf.LogEntryID = "entry-12345"
 	path2 := filepath.Join(dir, "with-log.json")
-	require.NoError(t, builder.WriteLockfile(path2, lf))
+	require.NoError(t, builder.WriteLockfile(testFs, path2, lf))
 
 	raw2, err := os.ReadFile(path2)
 	require.NoError(t, err)
@@ -112,7 +115,7 @@ func TestLockfile_Canonical(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "skill-lock.json")
 
-	require.NoError(t, builder.WriteLockfile(path, lf))
+	require.NoError(t, builder.WriteLockfile(testFs, path, lf))
 
 	raw, err := os.ReadFile(path)
 	require.NoError(t, err)
@@ -132,8 +135,8 @@ func TestLockfile_Deterministic(t *testing.T) {
 	path1 := filepath.Join(dir, "lock1.json")
 	path2 := filepath.Join(dir, "lock2.json")
 
-	require.NoError(t, builder.WriteLockfile(path1, lf))
-	require.NoError(t, builder.WriteLockfile(path2, lf))
+	require.NoError(t, builder.WriteLockfile(testFs, path1, lf))
+	require.NoError(t, builder.WriteLockfile(testFs, path2, lf))
 
 	data1, err := os.ReadFile(path1)
 	require.NoError(t, err)
@@ -149,9 +152,9 @@ func TestLockfile_SourceFields(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "skill-lock.json")
 
-	require.NoError(t, builder.WriteLockfile(path, lf))
+	require.NoError(t, builder.WriteLockfile(testFs, path, lf))
 
-	got, err := builder.ReadLockfile(path)
+	got, err := builder.ReadLockfile(testFs, path)
 	require.NoError(t, err)
 
 	assert.Equal(t, "https://github.com/example/skill", got.Source.Repository)
@@ -164,9 +167,9 @@ func TestLockfile_BuiltAtFormat(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "skill-lock.json")
 
-	require.NoError(t, builder.WriteLockfile(path, lf))
+	require.NoError(t, builder.WriteLockfile(testFs, path, lf))
 
-	got, err := builder.ReadLockfile(path)
+	got, err := builder.ReadLockfile(testFs, path)
 	require.NoError(t, err)
 
 	_, parseErr := time.Parse(time.RFC3339, got.BuiltAt)
@@ -181,9 +184,9 @@ func TestReadLockfile_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "skill-lock.json")
 
-	require.NoError(t, builder.WriteLockfile(path, lf))
+	require.NoError(t, builder.WriteLockfile(testFs, path, lf))
 
-	got, err := builder.ReadLockfile(path)
+	got, err := builder.ReadLockfile(testFs, path)
 	require.NoError(t, err)
 
 	assert.Equal(t, lf.SkillLedger, got.SkillLedger)

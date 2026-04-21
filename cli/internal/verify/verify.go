@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/afero"
 	"github.com/skillledger/skillledger/internal/builder"
 	"github.com/skillledger/skillledger/internal/manifest"
 )
@@ -41,7 +42,7 @@ func (p *Pipeline) Verify(ctx context.Context, input VerifyInput) (*VerifyResult
 	}
 
 	// --- Read lockfile (required -- fail-closed without it) ---
-	lf, err := builder.ReadLockfile(lockfilePath)
+	lf, err := builder.ReadLockfile(afero.NewOsFs(), lockfilePath)
 	if err != nil {
 		return nil, fmt.Errorf("reading lockfile: %w", err)
 	}

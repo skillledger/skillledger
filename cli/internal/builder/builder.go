@@ -137,7 +137,7 @@ func (b *Builder) Build(sourceDir, outputDir string) (*BuildResult, error) {
 			Directory:  m.Source.Directory,
 		},
 	}
-	if err := WriteLockfile(lockPath, lf); err != nil {
+	if err := WriteLockfile(b.fs, lockPath, lf); err != nil {
 		return nil, fmt.Errorf("writing lockfile: %w", err)
 	}
 

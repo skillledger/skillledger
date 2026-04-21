@@ -10,6 +10,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
+	"github.com/spf13/afero"
+
 	"github.com/skillledger/skillledger/internal/builder"
 	"github.com/skillledger/skillledger/internal/tlog"
 )
@@ -67,7 +69,8 @@ func runPublish(cmd *cobra.Command, args []string) error {
 	log.Info().Str("artifact", absArtifact).Str("lockfile", absLockfile).Msg("Starting publish")
 
 	// Step 1: Read lockfile
-	lf, err := builder.ReadLockfile(absLockfile)
+	osFs := afero.NewOsFs()
+	lf, err := builder.ReadLockfile(osFs, absLockfile)
 	if err != nil {
 		return fmt.Errorf("reading lockfile: %w", err)
 	}
@@ -94,7 +97,7 @@ func runPublish(cmd *cobra.Command, args []string) error {
 
 	// Step 4: Update lockfile with log entry ID (T-05-17: local record of publish)
 	lf.LogEntryID = fmt.Sprintf("%d", result.LogIndex)
-	if err := builder.WriteLockfile(absLockfile, lf); err != nil {
+	if err := builder.WriteLockfile(osFs, absLockfile, lf); err != nil {
 		return fmt.Errorf("updating lockfile: %w", err)
 	}
 

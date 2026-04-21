@@ -3,7 +3,8 @@ package builder
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+
+	"github.com/spf13/afero"
 
 	"github.com/skillledger/skillledger/internal/canon"
 )
@@ -33,7 +34,7 @@ type Lockfile struct {
 // WriteLockfile serializes a Lockfile to JCS-canonical JSON (RFC 8785) and
 // writes it to the given path. The output includes a trailing newline for
 // POSIX compliance.
-func WriteLockfile(path string, lf *Lockfile) error {
+func WriteLockfile(fs afero.Fs, path string, lf *Lockfile) error {
 	jsonBytes, err := json.Marshal(lf)
 	if err != nil {
 		return fmt.Errorf("writing lockfile: %w", err)
@@ -46,7 +47,7 @@ func WriteLockfile(path string, lf *Lockfile) error {
 
 	canonical = append(canonical, '\n')
 
-	if err := os.WriteFile(path, canonical, 0644); err != nil {
+	if err := afero.WriteFile(fs, path, canonical, 0644); err != nil {
 		return fmt.Errorf("writing lockfile: %w", err)
 	}
 
@@ -54,8 +55,8 @@ func WriteLockfile(path string, lf *Lockfile) error {
 }
 
 // ReadLockfile reads and parses a lockfile from the given path.
-func ReadLockfile(path string) (*Lockfile, error) {
-	data, err := os.ReadFile(path)
+func ReadLockfile(fs afero.Fs, path string) (*Lockfile, error) {
+	data, err := afero.ReadFile(fs, path)
 	if err != nil {
 		return nil, fmt.Errorf("reading lockfile: %w", err)
 	}

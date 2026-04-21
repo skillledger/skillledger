@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/afero"
 	"github.com/skillledger/skillledger/internal/builder"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -122,13 +123,13 @@ func TestBuild_GeneratesLockfile(t *testing.T) {
 
 	assert.True(t, filepath.Base(result.LockfilePath) == "skill-lock.json")
 
-	lf, err := builder.ReadLockfile(result.LockfilePath)
+	lf, err := builder.ReadLockfile(afero.NewOsFs(), result.LockfilePath)
 	require.NoError(t, err)
 
 	assert.Equal(t, "com.example.test-skill", lf.ArtifactID)
 	assert.Equal(t, "1.0.0", lf.Version)
 	assert.Equal(t, result.SHA256, lf.SHA256)
-	assert.Equal(t, result.Filename, lf.ContentAddress)
+	assert.Equal(t, "sha256-"+result.SHA256, lf.ContentAddress)
 	assert.Equal(t, "https://github.com/example/test-skill", lf.Source.Repository)
 	assert.Equal(t, "v1.0.0", lf.Source.Ref)
 }
@@ -181,7 +182,7 @@ func TestBuild_SourceDateEpoch(t *testing.T) {
 	result, err := b.Build(sourceDir, outputDir)
 	require.NoError(t, err)
 
-	lf, err := builder.ReadLockfile(result.LockfilePath)
+	lf, err := builder.ReadLockfile(afero.NewOsFs(), result.LockfilePath)
 	require.NoError(t, err)
 
 	assert.Equal(t, "2023-11-14T22:13:20Z", lf.BuiltAt)

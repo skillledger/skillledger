@@ -34,7 +34,12 @@ runs:
           DOWNLOAD_URL="https://github.com/skillledger/skillledger/releases/download/${VERSION}/skillledger_${OS}_${ARCH}"
         fi
         curl -sSL "$DOWNLOAD_URL" -o /usr/local/bin/skillledger || {
-          echo "::warning::Failed to download pre-built binary. Building from source..."
+          echo "::warning::Failed to download pre-built binary."
+          if ! command -v go &>/dev/null; then
+            echo "::error::Cannot build from source: Go not installed. Install Go or fix download URL."
+            exit 1
+          fi
+          echo "Building from source..."
           cd "$GITHUB_WORKSPACE"
           go build -trimpath -ldflags="-s -w" -o /usr/local/bin/skillledger ./cli/
         }

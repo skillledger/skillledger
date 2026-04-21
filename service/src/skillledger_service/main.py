@@ -1,16 +1,24 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from skillledger_service.db import engine
+from skillledger_service.db import engine, get_settings
 from skillledger_service.health import router as health_router
 from skillledger_service.models import Base
 from skillledger_service.routers.log import router as log_router
 from skillledger_service.routers.publishers import router as publishers_router
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings = get_settings()
+    if not settings.admin_api_key:
+        logger.warning(
+            "SKILLLEDGER_ADMIN_API_KEY is not set. Admin endpoints will be inaccessible."
+        )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield

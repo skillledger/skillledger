@@ -29,7 +29,7 @@ services:
     environment:
       - SKILLLEDGER_DEBUG=false
       - SKILLLEDGER_ADMIN_API_KEY=${SKILLLEDGER_ADMIN_API_KEY:?Set SKILLLEDGER_ADMIN_API_KEY}
-      - SKILLLEDGER_CORS_ORIGINS=["https://${SKILLLEDGER_DOMAIN:-log.skillledger.dev}"]
+      - 'SKILLLEDGER_CORS_ORIGINS=["https://${SKILLLEDGER_DOMAIN:-log.skillledger.dev}"]'
 
   skillledger-log:
     ports:

@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"encoding/json"
+	"os"
 	"sync"
 	"time"
 )
@@ -20,12 +22,14 @@ type DecisionEntry struct {
 
 // DecisionLog is a thread-safe ring buffer that records proxy decisions.
 // The ring buffer limits memory exposure per T-09-02 threat mitigation.
+// If a file writer is configured, each entry is also appended as JSONL.
 type DecisionLog struct {
 	mu      sync.RWMutex
 	entries []DecisionEntry
 	size    int
 	head    int
 	count   int
+	fileW   *os.File // optional JSONL file writer
 }
 
 // NewDecisionLog creates a new DecisionLog with the given capacity.
@@ -37,6 +41,15 @@ func NewDecisionLog(size int) *DecisionLog {
 		entries: make([]DecisionEntry, size),
 		size:    size,
 	}
+}
+
+// SetFileWriter configures an append-only JSONL file for decision persistence.
+// Each Record call will also write the entry as a JSON line to this file.
+// The caller is responsible for closing the file when done.
+func (d *DecisionLog) SetFileWriter(f *os.File) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.fileW = f
 }
 
 // Record adds a decision entry to the log. If ActionID is empty, one is
@@ -56,6 +69,14 @@ func (d *DecisionLog) Record(entry DecisionEntry) {
 	d.head = (d.head + 1) % d.size
 	if d.count < d.size {
 		d.count++
+	}
+
+	// Append to JSONL file if configured.
+	if d.fileW != nil {
+		if data, err := json.Marshal(entry); err == nil {
+			data = append(data, '\n')
+			_, _ = d.fileW.Write(data)
+		}
 	}
 }
 

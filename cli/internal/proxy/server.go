@@ -154,6 +154,16 @@ func (s *ProxyServer) Start(ctx context.Context) error {
 		s.port = tcpAddr.Port
 	}
 
+	// Open decisions.jsonl for file-backed decision persistence.
+	decisionLogPath := filepath.Join(s.baseDir, proxySubDir, "decisions.jsonl")
+	decisionFile, err := os.OpenFile(decisionLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("failed to open decisions.jsonl -- explain command will not work")
+	} else {
+		s.decisionLog.SetFileWriter(decisionFile)
+		defer decisionFile.Close()
+	}
+
 	// Write PID and port files (D-08).
 	if err := writePIDFile(s.fs, s.baseDir); err != nil {
 		s.logger.Warn().Err(err).Msg("failed to write PID file")

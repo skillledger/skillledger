@@ -8,6 +8,7 @@ require (
 	github.com/cyberphone/json-canonicalization v0.0.0-20241213102144-19d51d7fe467
 	github.com/elazarl/goproxy v1.8.3
 	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.1
 	github.com/in-toto/attestation v1.2.0
 	github.com/open-policy-agent/opa v1.15.2
 	github.com/owenrumney/go-sarif/v3 v3.3.0

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -23,6 +24,9 @@ type MCPWrapper struct {
 	decisionLog *DecisionLog
 	skillID     string
 	logger      zerolog.Logger
+	waitOnce    sync.Once
+	waitErr     error
+	waitDone    chan struct{}
 }
 
 // NewMCPWrapper creates a new MCP stdio wrapper for the given command.
@@ -51,7 +55,17 @@ func NewMCPWrapper(command string, args []string, skillID string, dl *DecisionLo
 		decisionLog: dl,
 		skillID:     skillID,
 		logger:      logger,
+		waitDone:    make(chan struct{}),
 	}, nil
+}
+
+// wait calls cmd.Wait exactly once via sync.Once and signals waitDone.
+func (w *MCPWrapper) wait() error {
+	w.waitOnce.Do(func() {
+		w.waitErr = w.cmd.Wait()
+		close(w.waitDone)
+	})
+	return w.waitErr
 }
 
 // Run starts the child process and relays messages bidirectionally.
@@ -76,8 +90,8 @@ func (w *MCPWrapper) Run() error {
 		errCh <- w.relayWithInspection(w.childOut, os.Stdout, "response")
 	}()
 
-	// Wait for child process to exit.
-	return w.cmd.Wait()
+	// Wait for child process to exit (safe for concurrent calls from Stop).
+	return w.wait()
 }
 
 // RunWithStreams is like Run but uses the provided reader/writer instead of
@@ -99,7 +113,7 @@ func (w *MCPWrapper) RunWithStreams(input io.Reader, output io.Writer) error {
 		errCh <- w.relayWithInspection(w.childOut, output, "response")
 	}()
 
-	return w.cmd.Wait()
+	return w.wait()
 }
 
 // relayWithInspection reads line-delimited messages from src, inspects each
@@ -163,14 +177,9 @@ func (w *MCPWrapper) Stop() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	done := make(chan error, 1)
-	go func() {
-		done <- w.cmd.Wait()
-	}()
-
 	select {
-	case err := <-done:
-		return err
+	case <-w.waitDone:
+		return w.waitErr
 	case <-ctx.Done():
 		// Force kill.
 		return w.cmd.Process.Kill()

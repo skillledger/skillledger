@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/elazarl/goproxy"
 	"github.com/rs/zerolog"
@@ -286,7 +287,7 @@ func IsProxyRunning(fs afero.Fs, baseDir string) (bool, int) {
 	if err != nil {
 		return false, pid
 	}
-	if err := proc.Signal(os.Signal(nil)); err != nil {
+	if err := proc.Signal(syscall.Signal(0)); err != nil {
 		// Process not running -- stale PID file.
 		return false, pid
 	}

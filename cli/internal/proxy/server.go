@@ -115,7 +115,7 @@ func (s *ProxyServer) DecisionLog() *DecisionLog {
 // It blocks until the context is cancelled or Stop is called.
 func (s *ProxyServer) Start(ctx context.Context) error {
 	// Check for stale PID (T-09-05).
-	if running, pid := isProxyRunning(s.fs, s.baseDir); running {
+	if running, pid := IsProxyRunning(s.fs, s.baseDir); running {
 		return fmt.Errorf("proxy already running (PID %d)", pid)
 	}
 
@@ -242,9 +242,34 @@ func removePortFile(fs afero.Fs, baseDir string) {
 	_ = fs.Remove(filepath.Join(baseDir, proxySubDir, portFileName))
 }
 
-// isProxyRunning checks if a proxy process is already running by reading the
+// ReadPortFile reads the proxy port from the port file on disk.
+func ReadPortFile(fs afero.Fs, baseDir string) (int, error) {
+	portPath := filepath.Join(baseDir, proxySubDir, portFileName)
+	data, err := afero.ReadFile(fs, portPath)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(string(data)))
+}
+
+// ReadPIDFile reads the proxy PID from the PID file on disk.
+func ReadPIDFile(fs afero.Fs, baseDir string) (int, error) {
+	pidPath := filepath.Join(baseDir, proxySubDir, pidFileName)
+	data, err := afero.ReadFile(fs, pidPath)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(string(data)))
+}
+
+// RemovePIDFile removes the PID file (for cleaning stale PIDs from cmd layer).
+func RemovePIDFile(fs afero.Fs, baseDir string) {
+	removePIDFile(fs, baseDir)
+}
+
+// IsProxyRunning checks if a proxy process is already running by reading the
 // PID file and checking process liveness (T-09-05 stale PID detection).
-func isProxyRunning(fs afero.Fs, baseDir string) (bool, int) {
+func IsProxyRunning(fs afero.Fs, baseDir string) (bool, int) {
 	pidPath := filepath.Join(baseDir, proxySubDir, pidFileName)
 	data, err := afero.ReadFile(fs, pidPath)
 	if err != nil {

@@ -29,8 +29,14 @@ func GenerateCA() (*tls.Certificate, error) {
 		return nil, fmt.Errorf("generate ECDSA key: %w", err)
 	}
 
+	// Generate a random 128-bit serial number per RFC 5280 Section 4.1.2.2.
+	serialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return nil, fmt.Errorf("generate serial number: %w", err)
+	}
+
 	template := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
+		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			Organization: []string{"SkillLedger Proxy CA"},
 			CommonName:   "SkillLedger Local CA",

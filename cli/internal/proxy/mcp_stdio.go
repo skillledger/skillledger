@@ -155,6 +155,10 @@ func (w *MCPWrapper) relayWithInspection(src io.Reader, dst io.Writer, direction
 		if _, err := fmt.Fprintf(dst, "%s\n", line); err != nil {
 			return fmt.Errorf("write to %s pipe: %w", direction, err)
 		}
+		// Flush pipe-backed writers to avoid MCP message delivery stalls.
+		if f, ok := dst.(*os.File); ok {
+			_ = f.Sync()
+		}
 	}
 
 	return scanner.Err()

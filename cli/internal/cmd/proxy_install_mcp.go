@@ -147,8 +147,17 @@ func runProxyInstallMCP(cmd *cobra.Command, args []string) error {
 	}
 
 	// Write backup file alongside config (Pitfall 5: store original entries).
+	// Load existing backup if present, to preserve entries from prior runs.
 	backupPath := filepath.Join(filepath.Dir(configPath), ".skillledger-mcp-backup.json")
-	backupData, err := json.MarshalIndent(backup, "", "  ")
+	existingBackup := make(map[string]mcpBackupEntry)
+	if existingData, err := os.ReadFile(backupPath); err == nil {
+		_ = json.Unmarshal(existingData, &existingBackup)
+	}
+	// Merge new backup entries into existing backup.
+	for name, entry := range backup {
+		existingBackup[name] = entry
+	}
+	backupData, err := json.MarshalIndent(existingBackup, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshaling backup: %w", err)
 	}

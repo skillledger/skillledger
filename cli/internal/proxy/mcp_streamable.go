@@ -25,8 +25,11 @@ func NewStreamableProxy(targetURL string, dl *DecisionLog, logger zerolog.Logger
 		targetURL:   targetURL,
 		decisionLog: dl,
 		upgrader: websocket.Upgrader{
-			// Allow all origins in Phase 9; future phases add origin checking.
-			CheckOrigin: func(r *http.Request) bool { return true },
+			// Restrict to localhost origins to prevent browser-based attacks (DNS rebinding).
+			CheckOrigin: func(r *http.Request) bool {
+				origin := r.Header.Get("Origin")
+				return origin == "" || origin == "http://127.0.0.1" || origin == "http://localhost"
+			},
 		},
 		logger: logger,
 	}

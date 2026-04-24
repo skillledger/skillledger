@@ -157,3 +157,110 @@ func TestFetchUpdatesWithClient_NonOKStatus(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "status 500")
 }
+
+// --- Domain IOC tests ---
+
+func TestMatchDomain_ExactMatch(t *testing.T) {
+	db := ioc.NewDatabase()
+	db.AddDomainEntry(ioc.DomainEntry{
+		Domain:      "evil.com",
+		Description: "Test malicious domain",
+		Severity:    "critical",
+		Source:      "test",
+		ReportedAt:  "2026-01-01",
+	})
+
+	match, found := db.MatchDomain("evil.com")
+	require.True(t, found)
+	assert.Equal(t, "evil.com", match.Domain)
+	assert.Equal(t, "critical", match.Severity)
+}
+
+func TestMatchDomain_SubdomainMatch(t *testing.T) {
+	db := ioc.NewDatabase()
+	db.AddDomainEntry(ioc.DomainEntry{
+		Domain:      "evil.com",
+		Description: "Test malicious domain",
+		Severity:    "critical",
+		Source:      "test",
+		ReportedAt:  "2026-01-01",
+	})
+
+	match, found := db.MatchDomain("sub.evil.com")
+	require.True(t, found)
+	assert.Equal(t, "evil.com", match.Domain)
+}
+
+func TestMatchDomain_NoPartialMatch(t *testing.T) {
+	db := ioc.NewDatabase()
+	db.AddDomainEntry(ioc.DomainEntry{
+		Domain:      "evil.com",
+		Description: "Test malicious domain",
+		Severity:    "critical",
+		Source:      "test",
+		ReportedAt:  "2026-01-01",
+	})
+
+	_, found := db.MatchDomain("notevil.com")
+	assert.False(t, found, "notevil.com should NOT match IOC evil.com")
+}
+
+func TestMatchDomain_CaseInsensitive(t *testing.T) {
+	db := ioc.NewDatabase()
+	db.AddDomainEntry(ioc.DomainEntry{
+		Domain:      "evil.com",
+		Description: "Test malicious domain",
+		Severity:    "critical",
+		Source:      "test",
+		ReportedAt:  "2026-01-01",
+	})
+
+	match, found := db.MatchDomain("Evil.COM")
+	require.True(t, found)
+	assert.Equal(t, "evil.com", match.Domain)
+}
+
+func TestMatchDomain_TrailingDot(t *testing.T) {
+	db := ioc.NewDatabase()
+	db.AddDomainEntry(ioc.DomainEntry{
+		Domain:      "evil.com",
+		Description: "Test malicious domain",
+		Severity:    "critical",
+		Source:      "test",
+		ReportedAt:  "2026-01-01",
+	})
+
+	match, found := db.MatchDomain("evil.com.")
+	require.True(t, found)
+	assert.Equal(t, "evil.com", match.Domain)
+}
+
+func TestMatchDomain_NotFound(t *testing.T) {
+	db := ioc.NewDatabase()
+	db.AddDomainEntry(ioc.DomainEntry{
+		Domain:      "evil.com",
+		Description: "Test malicious domain",
+		Severity:    "critical",
+		Source:      "test",
+		ReportedAt:  "2026-01-01",
+	})
+
+	_, found := db.MatchDomain("safe.example.com")
+	assert.False(t, found)
+}
+
+func TestLoad_IncludesDomains(t *testing.T) {
+	db, err := ioc.Load()
+	require.NoError(t, err)
+	assert.Greater(t, db.DomainCount(), 0, "bundled domain data should have entries")
+}
+
+func TestDomainCount(t *testing.T) {
+	db := ioc.NewDatabase()
+	assert.Equal(t, 0, db.DomainCount())
+
+	db.AddDomainEntry(ioc.DomainEntry{Domain: "a.com"})
+	db.AddDomainEntry(ioc.DomainEntry{Domain: "b.com"})
+	db.AddDomainEntry(ioc.DomainEntry{Domain: "c.com"})
+	assert.Equal(t, 3, db.DomainCount())
+}

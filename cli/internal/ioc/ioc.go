@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/skillledger/skillledger/internal/scanner"
@@ -20,9 +22,19 @@ type Entry struct {
 	ReportedAt  string `json:"reported_at"`
 }
 
-// Database stores IOC entries keyed by SHA-256 hash.
+// DomainEntry represents a known-malicious domain in the IOC database.
+type DomainEntry struct {
+	Domain      string `json:"domain"`
+	Description string `json:"description"`
+	Severity    string `json:"severity"`
+	Source      string `json:"source"`
+	ReportedAt  string `json:"reported_at"`
+}
+
+// Database stores IOC entries keyed by SHA-256 hash and domain IOC entries.
 type Database struct {
-	entries map[string]Entry
+	entries       map[string]Entry
+	domainEntries []DomainEntry
 }
 
 // Load creates a Database from the bundled IOC data (go:embed).
@@ -35,6 +47,15 @@ func Load() (*Database, error) {
 	for _, e := range entries {
 		db.entries[e.SHA256] = e
 	}
+
+	// Load bundled domain IOC data (supplementary; warn but don't fail).
+	var domainEntries []DomainEntry
+	if err := json.Unmarshal(bundledDomainData, &domainEntries); err != nil {
+		log.Printf("warning: parsing bundled domain IOC data: %v", err)
+	} else {
+		db.domainEntries = domainEntries
+	}
+
 	return db, nil
 }
 
@@ -46,6 +67,30 @@ func NewDatabase() *Database {
 // AddEntry adds an IOC entry to the database.
 func (d *Database) AddEntry(e Entry) {
 	d.entries[e.SHA256] = e
+}
+
+// AddDomainEntry adds a domain IOC entry to the database.
+func (d *Database) AddDomainEntry(e DomainEntry) {
+	d.domainEntries = append(d.domainEntries, e)
+}
+
+// MatchDomain checks if a hostname matches any domain IOC entry using suffix
+// matching with dot boundary. For example, IOC "evil.com" matches "evil.com"
+// and "sub.evil.com" but not "notevil.com".
+func (d *Database) MatchDomain(hostname string) (*DomainEntry, bool) {
+	hostname = strings.ToLower(strings.TrimSuffix(hostname, "."))
+	for _, entry := range d.domainEntries {
+		domain := strings.ToLower(entry.Domain)
+		if hostname == domain || strings.HasSuffix(hostname, "."+domain) {
+			return &entry, true
+		}
+	}
+	return nil, false
+}
+
+// DomainCount returns the number of domain IOC entries in the database.
+func (d *Database) DomainCount() int {
+	return len(d.domainEntries)
 }
 
 // Match checks if a SHA-256 hash is in the IOC database.
@@ -94,6 +139,12 @@ func (d *Database) FetchUpdatesWithClient(apiURL string, client *http.Client) er
 	return d.fetchAndMerge(apiURL, client)
 }
 
+// updateResponse supports both hash and domain IOC entries from the API.
+type updateResponse struct {
+	Hashes  []Entry       `json:"hashes,omitempty"`
+	Domains []DomainEntry `json:"domains,omitempty"`
+}
+
 func (d *Database) fetchAndMerge(apiURL string, client *http.Client) error {
 	resp, err := client.Get(apiURL)
 	if err != nil {
@@ -107,12 +158,26 @@ func (d *Database) fetchAndMerge(apiURL string, client *http.Client) error {
 
 	// Security: cap response body at 1MB (T-02-04)
 	limited := io.LimitReader(resp.Body, 1<<20)
-	var entries []Entry
-	if err := json.NewDecoder(limited).Decode(&entries); err != nil {
-		return fmt.Errorf("parsing IOC response: %w", err)
+	body, err := io.ReadAll(limited)
+	if err != nil {
+		return fmt.Errorf("reading IOC response: %w", err)
 	}
 
-	// Merge: new entries overwrite existing by SHA-256
+	// Try new object format with hashes + domains fields first.
+	var update updateResponse
+	if err := json.Unmarshal(body, &update); err == nil && (len(update.Hashes) > 0 || len(update.Domains) > 0) {
+		for _, e := range update.Hashes {
+			d.entries[e.SHA256] = e
+		}
+		d.domainEntries = append(d.domainEntries, update.Domains...)
+		return nil
+	}
+
+	// Backward compat: plain []Entry array (hash-only).
+	var entries []Entry
+	if err := json.Unmarshal(body, &entries); err != nil {
+		return fmt.Errorf("parsing IOC response: %w", err)
+	}
 	for _, e := range entries {
 		d.entries[e.SHA256] = e
 	}

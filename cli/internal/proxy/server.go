@@ -13,6 +13,7 @@ import (
 
 	"github.com/elazarl/goproxy"
 	"github.com/rs/zerolog"
+	"github.com/skillledger/skillledger/internal/ioc"
 	"github.com/spf13/afero"
 )
 
@@ -90,9 +91,41 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 		opt(s)
 	}
 
+	// Initialize detection scanners.
+	var scanners []Scanner
+
+	// Secret scanner with bundled patterns.
+	patterns := LoadPatterns()
+	secretScanner := NewSecretScanner(patterns)
+	scanners = append(scanners, secretScanner)
+
+	// Network scanner with IOC domain database.
+	iocDB, err := ioc.Load()
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("failed to load IOC database -- network scanner disabled")
+	} else {
+		networkScanner := NewNetworkScanner(iocDB)
+		scanners = append(scanners, networkScanner)
+	}
+
+	// DNS exfiltration scanner.
+	dnsExfilScanner := NewDNSExfilScanner()
+	scanners = append(scanners, dnsExfilScanner)
+
+	// Cumulative entropy tracker.
+	entropyTracker := NewEntropyTracker()
+	scanners = append(scanners, entropyTracker)
+
+	pipeline := NewScanPipeline(scanners...)
+
 	s.decisionLog = NewDecisionLog(s.logSize)
-	s.handler = NewHandler(s.decisionLog, s.logger)
+	s.handler = NewHandler(s.decisionLog, pipeline, s.logger)
 	s.proxy = goproxy.NewProxyHttpServer()
+
+	s.logger.Info().
+		Int("secret_patterns", len(patterns)).
+		Int("scanners", len(scanners)).
+		Msg("scanner pipeline initialized")
 
 	return s
 }

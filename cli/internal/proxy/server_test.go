@@ -114,7 +114,7 @@ func TestProxyServer_PIDFile(t *testing.T) {
 
 func TestHandler_OnRequest_LogsDecision(t *testing.T) {
 	dl := proxy.NewDecisionLog(100)
-	h := proxy.NewHandler(dl, zerolog.Nop())
+	h := proxy.NewHandler(dl, nil, zerolog.Nop())
 
 	req := httptest.NewRequest(http.MethodGet, "https://example.com/api", nil)
 	ctx := &goproxy.ProxyCtx{
@@ -131,7 +131,7 @@ func TestHandler_OnRequest_LogsDecision(t *testing.T) {
 	require.Len(t, entries, 1)
 	assert.Equal(t, "request", entries[0].Direction)
 	assert.Equal(t, proxy.ActionAllow, entries[0].Decision)
-	assert.Equal(t, "passthrough (Phase 9)", entries[0].Reason)
+	assert.Equal(t, "no findings", entries[0].Reason)
 	assert.Equal(t, "example.com", entries[0].Destination)
 	assert.Equal(t, http.MethodGet, entries[0].Method)
 
@@ -148,7 +148,7 @@ func TestHandler_OnRequest_LogsDecision(t *testing.T) {
 
 func TestHandler_OnResponse_LogsDecision(t *testing.T) {
 	dl := proxy.NewDecisionLog(100)
-	h := proxy.NewHandler(dl, zerolog.Nop())
+	h := proxy.NewHandler(dl, nil, zerolog.Nop())
 
 	req := httptest.NewRequest(http.MethodPost, "https://api.example.com/data", nil)
 	resp := &http.Response{

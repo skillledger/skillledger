@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -34,6 +35,24 @@ func Parse(data []byte) (*Policy, error) {
 			}
 			if r.Message == "" {
 				return nil, fmt.Errorf("rule %s[%d]: message field is required", category, i)
+			}
+		}
+	}
+
+	if p.RuntimeRules != nil {
+		for i, expr := range p.RuntimeRules.Block {
+			if strings.TrimSpace(expr) == "" {
+				return nil, fmt.Errorf("runtime-rules.block[%d]: empty expression", i)
+			}
+		}
+		for i, expr := range p.RuntimeRules.Warn {
+			if strings.TrimSpace(expr) == "" {
+				return nil, fmt.Errorf("runtime-rules.warn[%d]: empty expression", i)
+			}
+		}
+		for i, expr := range p.RuntimeRules.Log {
+			if strings.TrimSpace(expr) == "" {
+				return nil, fmt.Errorf("runtime-rules.log[%d]: empty expression", i)
 			}
 		}
 	}

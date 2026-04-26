@@ -118,3 +118,116 @@ func TestModerate_WarnsOnWrite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "warn", result.Decision)
 }
+
+// --- Runtime preset tests ---
+
+func TestGetRuntime_AllPresets(t *testing.T) {
+	for _, name := range []string{"strict", "moderate", "permissive"} {
+		t.Run(name, func(t *testing.T) {
+			src, err := preset.GetRuntime(name)
+			require.NoError(t, err)
+			assert.Contains(t, src, "package skillledger.runtime_policy")
+		})
+	}
+}
+
+func TestGetRuntime_Unknown(t *testing.T) {
+	_, err := preset.GetRuntime("nonexistent")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown runtime preset")
+}
+
+func TestListRuntime(t *testing.T) {
+	names := preset.ListRuntime()
+	assert.Equal(t, []string{"moderate", "permissive", "strict"}, names)
+}
+
+func TestRuntimePreset_StrictCompiles(t *testing.T) {
+	src, err := preset.GetRuntime("strict")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	_, err = rego.New(
+		rego.Query("data.skillledger.runtime_policy"),
+		rego.Module("test.rego", src),
+	).PrepareForEval(ctx)
+	require.NoError(t, err, "strict runtime preset should compile without errors")
+}
+
+func TestRuntimePreset_StrictEvaluates(t *testing.T) {
+	src, err := preset.GetRuntime("strict")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	prepared, err := rego.New(
+		rego.Query("data.skillledger.runtime_policy"),
+		rego.Module("test.rego", src),
+	).PrepareForEval(ctx)
+	require.NoError(t, err)
+
+	input := map[string]any{
+		"action": map[string]any{
+			"type":        "http_request",
+			"destination": "evil.com",
+			"method":      "GET",
+			"tool":        "",
+			"resource":    "",
+		},
+		"manifest": map[string]any{
+			"capabilities": map[string]any{
+				"network":    []any{"api.openai.com"},
+				"tools":      []any{},
+				"filesystem": []any{},
+				"secrets":    []any{},
+			},
+		},
+	}
+
+	rs, err := prepared.Eval(ctx, rego.EvalInput(input))
+	require.NoError(t, err)
+	require.NotEmpty(t, rs)
+	require.NotEmpty(t, rs[0].Expressions)
+
+	val, ok := rs[0].Expressions[0].Value.(map[string]any)
+	require.True(t, ok, "result should be a map")
+
+	decision, ok := val["decision"].(string)
+	require.True(t, ok, "decision should be a string")
+	assert.Equal(t, "deny", decision, "undeclared destination should be denied by strict preset")
+
+	// Check deny set is non-empty
+	denySet, ok := val["deny"]
+	require.True(t, ok, "deny set should exist")
+	switch d := denySet.(type) {
+	case map[string]any:
+		assert.NotEmpty(t, d, "deny set should be non-empty")
+	case []any:
+		assert.NotEmpty(t, d, "deny set should be non-empty")
+	default:
+		t.Fatalf("unexpected deny type: %T", denySet)
+	}
+}
+
+func TestRuntimePreset_ModerateCompiles(t *testing.T) {
+	src, err := preset.GetRuntime("moderate")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	_, err = rego.New(
+		rego.Query("data.skillledger.runtime_policy"),
+		rego.Module("test.rego", src),
+	).PrepareForEval(ctx)
+	require.NoError(t, err, "moderate runtime preset should compile without errors")
+}
+
+func TestRuntimePreset_PermissiveCompiles(t *testing.T) {
+	src, err := preset.GetRuntime("permissive")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	_, err = rego.New(
+		rego.Query("data.skillledger.runtime_policy"),
+		rego.Module("test.rego", src),
+	).PrepareForEval(ctx)
+	require.NoError(t, err, "permissive runtime preset should compile without errors")
+}

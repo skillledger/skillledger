@@ -2,9 +2,19 @@ package dsl
 
 // Policy represents a parsed DSL policy file.
 type Policy struct {
-	Version    int               `yaml:"version" json:"version"`
-	Rules      map[string][]Rule `yaml:"rules" json:"rules"`
-	Publishers PublisherConfig   `yaml:"publishers,omitempty" json:"publishers,omitempty"`
+	Version      int               `yaml:"version" json:"version"`
+	Rules        map[string][]Rule `yaml:"rules" json:"rules"`
+	Publishers   PublisherConfig   `yaml:"publishers,omitempty" json:"publishers,omitempty"`
+	RuntimeRules *RuntimeRuleSet   `yaml:"runtime-rules,omitempty" json:"runtime-rules,omitempty"`
+}
+
+// RuntimeRuleSet holds runtime action enforcement rules compiled to Rego.
+// Block rules generate deny decisions, Warn rules generate warnings,
+// and Log rules generate log entries for observability.
+type RuntimeRuleSet struct {
+	Block []string `yaml:"block,omitempty" json:"block,omitempty"`
+	Warn  []string `yaml:"warn,omitempty" json:"warn,omitempty"`
+	Log   []string `yaml:"log,omitempty" json:"log,omitempty"`
 }
 
 // Rule represents a single policy rule in the DSL.

@@ -231,3 +231,149 @@ func TestRuntimePreset_PermissiveCompiles(t *testing.T) {
 	).PrepareForEval(ctx)
 	require.NoError(t, err, "permissive runtime preset should compile without errors")
 }
+
+// --- Trust-tier-aware runtime preset tests ---
+
+// evalRuntimePreset compiles a runtime preset and evaluates with given input,
+// returning the full result map (decision, deny, warnings).
+func evalRuntimePreset(t *testing.T, presetName string, input map[string]any) map[string]any {
+	t.Helper()
+	src, err := preset.GetRuntime(presetName)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	prepared, err := rego.New(
+		rego.Query("data.skillledger.runtime_policy"),
+		rego.Module("test.rego", src),
+	).PrepareForEval(ctx)
+	require.NoError(t, err)
+
+	rs, err := prepared.Eval(ctx, rego.EvalInput(input))
+	require.NoError(t, err)
+	require.NotEmpty(t, rs)
+	require.NotEmpty(t, rs[0].Expressions)
+
+	val, ok := rs[0].Expressions[0].Value.(map[string]any)
+	require.True(t, ok, "result should be a map")
+	return val
+}
+
+func runtimeInput(trustTier, actionType, destination, tool string, manifestNetwork, manifestTools []any) map[string]any {
+	return map[string]any{
+		"trust_tier": trustTier,
+		"action": map[string]any{
+			"type":        actionType,
+			"destination": destination,
+			"method":      "GET",
+			"tool":        tool,
+			"resource":    "",
+		},
+		"manifest": map[string]any{
+			"capabilities": map[string]any{
+				"network":    manifestNetwork,
+				"tools":      manifestTools,
+				"filesystem": []any{},
+				"secrets":    []any{},
+			},
+		},
+	}
+}
+
+func TestRuntimePreset_TrustTier_Strict_UnverifiedNonLocalhost_Deny(t *testing.T) {
+	input := runtimeInput("unverified", "http_request", "evil.com", "", []any{"api.openai.com"}, []any{})
+	result := evalRuntimePreset(t, "strict", input)
+	assert.Equal(t, "deny", result["decision"].(string))
+}
+
+func TestRuntimePreset_TrustTier_Strict_UnverifiedLocalhost_Allow(t *testing.T) {
+	input := runtimeInput("unverified", "http_request", "localhost:8080", "", []any{}, []any{})
+	result := evalRuntimePreset(t, "strict", input)
+	assert.Equal(t, "allow", result["decision"].(string))
+}
+
+func TestRuntimePreset_TrustTier_Strict_UnverifiedUndeclaredTool_Deny(t *testing.T) {
+	input := runtimeInput("unverified", "mcp_tool_call", "", "evil_tool", []any{}, []any{"safe_tool"})
+	result := evalRuntimePreset(t, "strict", input)
+	assert.Equal(t, "deny", result["decision"].(string))
+}
+
+func TestRuntimePreset_TrustTier_Strict_PartialUndeclaredDest_Deny(t *testing.T) {
+	input := runtimeInput("partial", "http_request", "evil.com", "", []any{"api.openai.com"}, []any{})
+	result := evalRuntimePreset(t, "strict", input)
+	assert.Equal(t, "deny", result["decision"].(string))
+}
+
+func TestRuntimePreset_TrustTier_Strict_VerifiedDeclared_Allow(t *testing.T) {
+	input := runtimeInput("verified", "http_request", "api.openai.com", "", []any{"api.openai.com"}, []any{})
+	result := evalRuntimePreset(t, "strict", input)
+	assert.Equal(t, "allow", result["decision"].(string))
+}
+
+func TestRuntimePreset_TrustTier_Moderate_UnverifiedNonLocalhost_Deny(t *testing.T) {
+	input := runtimeInput("unverified", "http_request", "evil.com", "", []any{"api.openai.com"}, []any{})
+	result := evalRuntimePreset(t, "moderate", input)
+	assert.Equal(t, "deny", result["decision"].(string))
+}
+
+func TestRuntimePreset_TrustTier_Moderate_PartialAction_Warn(t *testing.T) {
+	input := runtimeInput("partial", "http_request", "api.openai.com", "", []any{"api.openai.com"}, []any{})
+	result := evalRuntimePreset(t, "moderate", input)
+	// Partial skills should produce warnings in moderate preset
+	warnings, ok := result["warnings"]
+	require.True(t, ok, "warnings should exist")
+	switch w := warnings.(type) {
+	case map[string]any:
+		assert.NotEmpty(t, w, "partial skill should produce warnings")
+	case []any:
+		assert.NotEmpty(t, w, "partial skill should produce warnings")
+	}
+}
+
+func TestRuntimePreset_TrustTier_Moderate_VerifiedDeclared_Allow(t *testing.T) {
+	input := runtimeInput("verified", "http_request", "api.openai.com", "", []any{"api.openai.com"}, []any{})
+	result := evalRuntimePreset(t, "moderate", input)
+	assert.Equal(t, "allow", result["decision"].(string))
+}
+
+func TestRuntimePreset_TrustTier_Permissive_UnverifiedNonLocalhost_Warn(t *testing.T) {
+	input := runtimeInput("unverified", "http_request", "evil.com", "", []any{"api.openai.com"}, []any{})
+	result := evalRuntimePreset(t, "permissive", input)
+	// Permissive preset warns instead of blocking for unverified
+	decision := result["decision"].(string)
+	assert.Equal(t, "warn", decision, "permissive should warn, not block, for unverified skills")
+}
+
+func TestRuntimePreset_TrustTier_Permissive_Verified_Allow(t *testing.T) {
+	input := runtimeInput("verified", "http_request", "api.openai.com", "", []any{"api.openai.com"}, []any{})
+	result := evalRuntimePreset(t, "permissive", input)
+	assert.Equal(t, "allow", result["decision"].(string))
+}
+
+func TestRuntimePreset_TrustTier_AbsentFromInput_BackwardCompat(t *testing.T) {
+	// All presets should work when trust_tier is absent from input
+	for _, presetName := range []string{"strict", "moderate", "permissive"} {
+		t.Run(presetName, func(t *testing.T) {
+			input := map[string]any{
+				"action": map[string]any{
+					"type":        "http_request",
+					"destination": "api.openai.com",
+					"method":      "GET",
+					"tool":        "",
+					"resource":    "",
+				},
+				"manifest": map[string]any{
+					"capabilities": map[string]any{
+						"network":    []any{"api.openai.com"},
+						"tools":      []any{},
+						"filesystem": []any{},
+						"secrets":    []any{},
+					},
+				},
+			}
+			// Should not panic or error -- backward compat
+			result := evalRuntimePreset(t, presetName, input)
+			_, ok := result["decision"].(string)
+			assert.True(t, ok, "decision should be a string")
+		})
+	}
+}

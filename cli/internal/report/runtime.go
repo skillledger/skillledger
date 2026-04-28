@@ -75,7 +75,7 @@ var runtimeRules = map[string]RuntimeRule{
 		HelpURI:          "https://skillledger.dev/docs/runtime/yara",
 		DefaultLevel:     "warning",
 	},
-	"dns_exfil": {
+	"dns-exfil": {
 		ID:               "SL-RT-dns-001",
 		ShortDescription: "DNS exfiltration attempt",
 		FullDescription:  "Data encoded in DNS subdomain queries",

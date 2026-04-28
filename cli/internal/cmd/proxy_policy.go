@@ -34,7 +34,8 @@ var proxyPolicySetCmd = &cobra.Command{
 To persist, edit the policy.yaml config file directly.
 
 Violation types: secret_exfil, ioc_match, undeclared_destination, undeclared_tool,
-                 capability_violation, dns_exfil, slow_drip
+                 capability_violation, dns_exfil, slow_drip,
+                 pin_change_midsession, pin_change_between, prompt_injection
 
 Actions: block, warn, log`,
 	Args: cobra.ExactArgs(2),
@@ -59,6 +60,9 @@ var knownViolationTypes = map[string]bool{
 	"capability_violation":   true,
 	"dns_exfil":              true,
 	"slow_drip":              true,
+	"pin_change_midsession":  true,
+	"pin_change_between":     true,
+	"prompt_injection":       true,
 }
 
 func runProxyPolicyShow(cmd *cobra.Command, args []string) error {
@@ -109,6 +113,9 @@ func sortedViolationTypes() []string {
 		"capability_violation",
 		"dns_exfil",
 		"slow_drip",
+		"pin_change_midsession",
+		"pin_change_between",
+		"prompt_injection",
 	}
 }
 

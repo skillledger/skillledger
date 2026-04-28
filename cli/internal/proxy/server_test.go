@@ -280,3 +280,65 @@ func TestProxyServer_MITMInterception(t *testing.T) {
 		t.Fatal("server did not stop")
 	}
 }
+
+// --- Phase 12 server tests ---
+
+func TestProxyServer_InjectionScannerInPipeline(t *testing.T) {
+	s := proxy.NewProxyServer(
+		proxy.WithPort(0),
+		proxy.WithBaseDir(t.TempDir()),
+		proxy.WithFs(afero.NewMemMapFs()),
+		proxy.WithLogger(zerolog.Nop()),
+	)
+	// Verify injScanner was created and is accessible.
+	assert.NotNil(t, s.InjectionScanner(), "InjectionScanner should be initialized by NewProxyServer")
+}
+
+func TestProxyServer_PinStoreInitialized(t *testing.T) {
+	s := proxy.NewProxyServer(
+		proxy.WithPort(0),
+		proxy.WithBaseDir(t.TempDir()),
+		proxy.WithFs(afero.NewMemMapFs()),
+		proxy.WithLogger(zerolog.Nop()),
+	)
+	// Verify pinStore was created and is accessible.
+	assert.NotNil(t, s.PinStore(), "PinStore should be initialized by NewProxyServer")
+}
+
+func TestProxyServer_PolicyConfigNewViolations(t *testing.T) {
+	s := proxy.NewProxyServer(
+		proxy.WithPort(0),
+		proxy.WithBaseDir(t.TempDir()),
+		proxy.WithFs(afero.NewMemMapFs()),
+		proxy.WithLogger(zerolog.Nop()),
+	)
+	pc := s.PolicyConfig()
+	assert.NotNil(t, pc)
+	// Phase 12 violation types should have correct defaults.
+	assert.Equal(t, proxy.ActionBlock, pc.ActionFor("pin_change_midsession"))
+	assert.Equal(t, proxy.ActionWarn, pc.ActionFor("prompt_injection"))
+	assert.Equal(t, proxy.ActionWarn, pc.ActionFor("pin_change_between"))
+}
+
+func TestProxyServer_StreamableProxyRegistered(t *testing.T) {
+	s := proxy.NewProxyServer(
+		proxy.WithPort(0),
+		proxy.WithBaseDir(t.TempDir()),
+		proxy.WithFs(afero.NewMemMapFs()),
+		proxy.WithLogger(zerolog.Nop()),
+		proxy.WithStreamableMCPURL("ws://test:3000/mcp"),
+	)
+	// Verify StreamableProxy was created.
+	assert.NotNil(t, s.StreamableProxy(), "StreamableProxy should be created when URL is provided")
+}
+
+func TestProxyServer_NoStreamableProxyWithoutURL(t *testing.T) {
+	s := proxy.NewProxyServer(
+		proxy.WithPort(0),
+		proxy.WithBaseDir(t.TempDir()),
+		proxy.WithFs(afero.NewMemMapFs()),
+		proxy.WithLogger(zerolog.Nop()),
+	)
+	// Verify StreamableProxy is nil when no URL is configured.
+	assert.Nil(t, s.StreamableProxy(), "StreamableProxy should be nil when no URL is provided")
+}

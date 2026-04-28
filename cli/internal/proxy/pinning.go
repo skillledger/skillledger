@@ -509,6 +509,18 @@ func classifyPinChange(old *PinEntry, newTool MCPTool, midSession bool) PinChang
 	return classifyPinChangeFromHashes(old, newDescHash, newSchemaHash, midSession)
 }
 
+// PinKeys returns all pin keys currently stored. This is used to check
+// whether any pins exist for a given server prefix.
+func (s *ToolPinStore) PinKeys() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	keys := make([]string, 0, len(s.pins.Pins))
+	for k := range s.pins.Pins {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // Accept updates the pin entry for a tool to reflect its new definition.
 // This is called when a user explicitly accepts a pin change.
 func (s *ToolPinStore) Accept(serverID, toolName string, tool MCPTool) error {

@@ -22,6 +22,11 @@ var defaultResponseActions = map[string]string{
 	"capability_violation":   "block",
 	"dns_exfil":              "warn",
 	"slow_drip":              "log",
+
+	// Phase 12: MCP protection violation types.
+	"pin_change_midsession": "block", // Mid-session rug-pull: always block (CONTEXT.md: no warn option)
+	"pin_change_between":    "warn",  // Between-session change: warn + show diff
+	"prompt_injection":      "warn",  // Injection detection: warn-only default (CONTEXT.md)
 }
 
 // validPresets enumerates the allowed preset names.

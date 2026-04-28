@@ -14,7 +14,9 @@ import (
 	"github.com/elazarl/goproxy"
 	"github.com/rs/zerolog"
 	"github.com/skillledger/skillledger/internal/ioc"
+	"github.com/skillledger/skillledger/internal/manifest"
 	"github.com/spf13/afero"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -30,15 +32,19 @@ type ServerOption func(*ProxyServer)
 
 // ProxyServer is an HTTP/HTTPS MITM proxy that intercepts skill traffic.
 type ProxyServer struct {
-	fs          afero.Fs
-	baseDir     string
-	port        int
-	decisionLog *DecisionLog
-	handler     *Handler
-	proxy       *goproxy.ProxyHttpServer
-	listener    net.Listener
-	logger      zerolog.Logger
-	logSize     int
+	fs             afero.Fs
+	baseDir        string
+	port           int
+	decisionLog    *DecisionLog
+	handler        *Handler
+	proxy          *goproxy.ProxyHttpServer
+	listener       net.Listener
+	logger         zerolog.Logger
+	logSize        int
+	policyConfig   *PolicyConfig
+	manifestDir    string
+	capabilityEval *RuntimeEvaluator
+	profiler       *Profiler
 }
 
 // WithPort sets the proxy listen port.
@@ -73,6 +79,20 @@ func WithDecisionLogSize(size int) ServerOption {
 func WithLogger(logger zerolog.Logger) ServerOption {
 	return func(s *ProxyServer) {
 		s.logger = logger
+	}
+}
+
+// WithPolicyConfig sets the runtime capability policy configuration.
+func WithPolicyConfig(config *PolicyConfig) ServerOption {
+	return func(s *ProxyServer) {
+		s.policyConfig = config
+	}
+}
+
+// WithManifestDir sets the directory containing skill manifests (skillledger.yaml files).
+func WithManifestDir(dir string) ServerOption {
+	return func(s *ProxyServer) {
+		s.manifestDir = dir
 	}
 }
 
@@ -118,8 +138,41 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 
 	pipeline := NewScanPipeline(scanners...)
 
+	// Initialize auto-profiler.
+	profiler := NewProfiler()
+	s.profiler = profiler
+
+	// Load policy config (default if none provided via option).
+	if s.policyConfig == nil {
+		s.policyConfig = DefaultPolicyConfig()
+	}
+
+	// Load manifests from manifest directory.
+	manifests := make(map[string]*manifest.Manifest)
+	if s.manifestDir != "" {
+		loaded, loadErr := loadManifestsFromDir(s.fs, s.manifestDir)
+		if loadErr != nil {
+			s.logger.Warn().Err(loadErr).Str("dir", s.manifestDir).Msg("failed to load manifests")
+		} else {
+			manifests = loaded
+			s.logger.Info().Int("manifests", len(manifests)).Msg("loaded skill manifests")
+		}
+	}
+
+	// Initialize RuntimeEvaluator.
+	capEval, evalErr := NewRuntimeEvaluator(s.policyConfig.Preset, manifests, s.policyConfig, profiler, nil)
+	if evalErr != nil {
+		s.logger.Warn().Err(evalErr).Msg("failed to initialize runtime evaluator -- capability enforcement disabled")
+	} else {
+		s.capabilityEval = capEval
+		s.logger.Info().
+			Str("preset", s.policyConfig.Preset).
+			Int("manifests", len(manifests)).
+			Msg("runtime capability evaluator initialized")
+	}
+
 	s.decisionLog = NewDecisionLog(s.logSize)
-	s.handler = NewHandler(s.decisionLog, pipeline, s.logger)
+	s.handler = NewHandler(s.decisionLog, pipeline, s.capabilityEval, s.logger)
 	s.proxy = goproxy.NewProxyHttpServer()
 
 	s.logger.Info().
@@ -128,6 +181,40 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 		Msg("scanner pipeline initialized")
 
 	return s
+}
+
+// loadManifestsFromDir reads all YAML files in the given directory and parses
+// them as skill manifests. Malformed files are skipped with a warning log (T-11-12).
+func loadManifestsFromDir(fs afero.Fs, dir string) (map[string]*manifest.Manifest, error) {
+	entries, err := afero.ReadDir(fs, dir)
+	if err != nil {
+		return nil, fmt.Errorf("reading manifest directory: %w", err)
+	}
+
+	manifests := make(map[string]*manifest.Manifest)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".yml") {
+			continue
+		}
+		data, readErr := afero.ReadFile(fs, filepath.Join(dir, name))
+		if readErr != nil {
+			continue
+		}
+		var m manifest.Manifest
+		if unmarshalErr := yaml.Unmarshal(data, &m); unmarshalErr != nil {
+			continue
+		}
+		if m.ID == "" {
+			continue
+		}
+		manifests[m.ID] = &m
+	}
+
+	return manifests, nil
 }
 
 // Port returns the configured port.
@@ -251,7 +338,41 @@ func (s *ProxyServer) Addr() string {
 	return ""
 }
 
+// Profiler returns the auto-profiler instance.
+func (s *ProxyServer) Profiler() *Profiler { return s.profiler }
+
+// RuntimeEvaluator returns the capability evaluator instance.
+func (s *ProxyServer) RuntimeEvaluator() *RuntimeEvaluator { return s.capabilityEval }
+
+// PolicyConfig returns the active policy configuration.
+func (s *ProxyServer) PolicyConfig() *PolicyConfig { return s.policyConfig }
+
 func (s *ProxyServer) cleanup() {
+	// Export profiles on shutdown (T-11-13: 0600 permissions).
+	if s.profiler != nil {
+		profiles := s.profiler.ExportAll()
+		if len(profiles) > 0 {
+			profileDir := filepath.Join(s.baseDir, "profiles")
+			if err := s.fs.MkdirAll(profileDir, 0700); err != nil {
+				s.logger.Warn().Err(err).Msg("failed to create profiles directory")
+			} else {
+				for _, m := range profiles {
+					data, marshalErr := yaml.Marshal(m)
+					if marshalErr != nil {
+						s.logger.Warn().Err(marshalErr).Str("skill", m.ID).Msg("failed to marshal profile")
+						continue
+					}
+					path := filepath.Join(profileDir, m.ID+".yaml")
+					if writeErr := afero.WriteFile(s.fs, path, data, 0600); writeErr != nil {
+						s.logger.Warn().Err(writeErr).Str("path", path).Msg("failed to write profile")
+					} else {
+						s.logger.Info().Str("skill", m.ID).Str("path", path).Msg("exported skill profile")
+					}
+				}
+			}
+		}
+	}
+
 	removePIDFile(s.fs, s.baseDir)
 	removePortFile(s.fs, s.baseDir)
 }

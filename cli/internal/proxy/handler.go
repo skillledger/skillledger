@@ -12,17 +12,20 @@ import (
 // Handler implements the request/response handler pipeline for the MITM proxy.
 // It logs every intercepted request and response as a DecisionEntry.
 type Handler struct {
-	decisionLog *DecisionLog
-	pipeline    *ScanPipeline
-	logger      zerolog.Logger
+	decisionLog    *DecisionLog
+	pipeline       *ScanPipeline
+	capabilityEval *RuntimeEvaluator
+	logger         zerolog.Logger
 }
 
-// NewHandler creates a new Handler backed by the given decision log and scanner pipeline.
-func NewHandler(dl *DecisionLog, pipeline *ScanPipeline, logger zerolog.Logger) *Handler {
+// NewHandler creates a new Handler backed by the given decision log, scanner pipeline,
+// and optional RuntimeEvaluator for capability enforcement.
+func NewHandler(dl *DecisionLog, pipeline *ScanPipeline, capEval *RuntimeEvaluator, logger zerolog.Logger) *Handler {
 	return &Handler{
-		decisionLog: dl,
-		pipeline:    pipeline,
-		logger:      logger,
+		decisionLog:    dl,
+		pipeline:       pipeline,
+		capabilityEval: capEval,
+		logger:         logger,
 	}
 }
 
@@ -51,6 +54,22 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 	var findings []Finding
 	if h.pipeline != nil {
 		findings = h.pipeline.Run(r, body)
+		if len(findings) > 0 {
+			decision = HighestDecision(findings)
+			reason = FormatFindings(findings)
+		}
+	}
+
+	// Runtime capability enforcement (Phase 11: after scanners).
+	if h.capabilityEval != nil {
+		action := RuntimeAction{
+			SkillID:     "", // HTTP proxy requests have no explicit skill ID; resolved in Phase 12+
+			ActionType:  "http_request",
+			Destination: r.URL.Host,
+			Method:      r.Method,
+		}
+		capFindings := h.capabilityEval.Evaluate(r.Context(), action)
+		findings = append(findings, capFindings...)
 		if len(findings) > 0 {
 			decision = HighestDecision(findings)
 			reason = FormatFindings(findings)

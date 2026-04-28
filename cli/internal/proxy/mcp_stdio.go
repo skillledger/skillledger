@@ -320,6 +320,14 @@ func (w *MCPWrapper) handleFirstToolsList(tools []MCPTool) {
 					change.ToolName, change.Severity, change.OldHash, change.NewHash),
 				Protocol: "mcp-stdio",
 				SkillID:  w.skillID,
+				Findings: []Finding{{
+					Scanner:     "pinchange",
+					Severity:    string(change.Severity),
+					Description: fmt.Sprintf("between-session pin change for tool %s", change.ToolName),
+					Pattern:     change.ToolName,
+					MatchValue:  fmt.Sprintf("old=%s new=%s", change.OldHash, change.NewHash),
+					Decision:    action,
+				}},
 			}
 			w.decisionLog.Record(entry)
 			w.logger.Warn().
@@ -352,6 +360,14 @@ func (w *MCPWrapper) handleSubsequentToolsList(tools []MCPTool) {
 				change.ToolName, change.Severity, change.OldHash, change.NewHash),
 			Protocol: "mcp-stdio",
 			SkillID:  w.skillID,
+			Findings: []Finding{{
+				Scanner:     "pinchange",
+				Severity:    string(change.Severity),
+				Description: fmt.Sprintf("mid-session rug-pull for tool %s", change.ToolName),
+				Pattern:     change.ToolName,
+				MatchValue:  fmt.Sprintf("old=%s new=%s", change.OldHash, change.NewHash),
+				Decision:    ActionBlock,
+			}},
 		}
 		w.decisionLog.Record(entry)
 		w.logger.Error().
@@ -382,6 +398,7 @@ func (w *MCPWrapper) handleToolsCallResponse(msg *JSONRPCMessage) {
 			Reason:    fmt.Sprintf("injection finding: %s", f.Description),
 			Protocol:  "mcp-stdio",
 			SkillID:   w.skillID,
+			Findings:  []Finding{f},
 		}
 		w.decisionLog.Record(entry)
 		w.logger.Warn().

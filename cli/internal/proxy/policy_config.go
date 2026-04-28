@@ -11,6 +11,7 @@ import (
 type PolicyConfig struct {
 	Preset          string            `yaml:"preset"`
 	ResponseActions map[string]string `yaml:"response_actions"`
+	Provenance      map[string]string `yaml:"provenance,omitempty"`
 }
 
 // defaultResponseActions defines the default action for each violation type.
@@ -34,6 +35,14 @@ var validPresets = map[string]bool{
 	"strict":     true,
 	"moderate":   true,
 	"permissive": true,
+	"block_all":  true,
+}
+
+// validTrustTiers enumerates the allowed trust tier names for provenance mapping.
+var validTrustTiers = map[string]bool{
+	"verified":   true,
+	"partial":    true,
+	"unverified": true,
 }
 
 // validActions enumerates the allowed response action values.
@@ -74,6 +83,16 @@ func LoadPolicyConfig(data []byte) (*PolicyConfig, error) {
 		}
 	}
 
+	// Validate provenance tier-to-preset mapping
+	for tier, presetName := range pc.Provenance {
+		if !validTrustTiers[tier] {
+			return nil, fmt.Errorf("invalid trust tier %q in provenance: must be one of verified, partial, unverified", tier)
+		}
+		if !validPresets[presetName] {
+			return nil, fmt.Errorf("invalid provenance preset %q for tier %q: must be one of strict, moderate, permissive, block_all", presetName, tier)
+		}
+	}
+
 	return &pc, nil
 }
 
@@ -90,6 +109,14 @@ func MergePolicyConfigs(base, override *PolicyConfig) *PolicyConfig {
 		result.ResponseActions[k] = v
 	}
 
+	// Copy base provenance
+	if base.Provenance != nil {
+		result.Provenance = make(map[string]string, len(base.Provenance))
+		for k, v := range base.Provenance {
+			result.Provenance[k] = v
+		}
+	}
+
 	// Apply overrides
 	if override.Preset != "" {
 		result.Preset = override.Preset
@@ -97,8 +124,37 @@ func MergePolicyConfigs(base, override *PolicyConfig) *PolicyConfig {
 	for k, v := range override.ResponseActions {
 		result.ResponseActions[k] = v
 	}
+	// Merge provenance overrides (individual key replacement)
+	for k, v := range override.Provenance {
+		if result.Provenance == nil {
+			result.Provenance = make(map[string]string)
+		}
+		result.Provenance[k] = v
+	}
 
 	return result
+}
+
+// ProvenancePresetFor returns the runtime preset name to use for a given trust tier.
+// If a custom mapping is configured in Provenance, it takes precedence.
+// Otherwise, returns the default: verified->moderate, partial->strict, unverified->strict.
+func (pc *PolicyConfig) ProvenancePresetFor(tier string) string {
+	if pc.Provenance != nil {
+		if presetName, ok := pc.Provenance[tier]; ok {
+			return presetName
+		}
+	}
+	// Default mapping per CONTEXT.md
+	switch tier {
+	case "verified":
+		return "moderate"
+	case "partial":
+		return "strict"
+	case "unverified":
+		return "strict"
+	default:
+		return "strict"
+	}
 }
 
 // ActionFor returns the ActionType for a given violation type.

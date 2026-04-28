@@ -16,6 +16,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/skillledger/skillledger/internal/ioc"
 	"github.com/skillledger/skillledger/internal/manifest"
+	"github.com/skillledger/skillledger/internal/verify"
 	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 )
@@ -57,6 +58,11 @@ type ProxyServer struct {
 	// Phase 12: options applied in NewProxyServer.
 	injAllowlistPath string // path to injection allowlist YAML
 	deepScan         bool   // always run ML classifier
+
+	// Phase 13: Provenance-aware policy components.
+	trustVerifier  *TrustVerifier     // session-scoped trust tier verifier (nil if no lockfile-dir)
+	lockfileDir    string             // directory containing skill lockfiles
+	verifyPipeline *verify.Pipeline   // v1 verification pipeline for trust verification
 }
 
 // WithPort sets the proxy listen port.
@@ -127,6 +133,21 @@ func WithDeepScan(enabled bool) ServerOption {
 func WithStreamableMCPURL(url string) ServerOption {
 	return func(s *ProxyServer) {
 		s.streamableURL = url
+	}
+}
+
+// WithLockfileDir sets the directory containing skill lockfiles for provenance verification.
+// When set along with a verify pipeline, a TrustVerifier is created to assign trust tiers.
+func WithLockfileDir(dir string) ServerOption {
+	return func(s *ProxyServer) {
+		s.lockfileDir = dir
+	}
+}
+
+// WithVerifyPipeline sets the v1 verification pipeline used by TrustVerifier.
+func WithVerifyPipeline(p *verify.Pipeline) ServerOption {
+	return func(s *ProxyServer) {
+		s.verifyPipeline = p
 	}
 }
 
@@ -236,6 +257,22 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 			Msg("runtime capability evaluator initialized")
 	}
 
+	// Phase 13: Create TrustVerifier if lockfile directory and verify pipeline are provided.
+	if s.lockfileDir != "" {
+		if s.verifyPipeline != nil {
+			ctx := context.Background()
+			tv := NewTrustVerifier(ctx, s.verifyPipeline, s.fs, s.lockfileDir, s.logger)
+			s.trustVerifier = tv
+			s.logger.Info().
+				Str("lockfile_dir", s.lockfileDir).
+				Msg("trust verifier initialized for provenance-aware policy")
+		} else {
+			s.logger.Warn().
+				Str("lockfile_dir", s.lockfileDir).
+				Msg("lockfile-dir set but no verify pipeline provided -- trust verification disabled")
+		}
+	}
+
 	// Phase 12: Create StreamableProxy if URL is configured.
 	if s.streamableURL != "" {
 		sp := NewStreamableProxy(s.streamableURL, nil, s.logger, s.pinStore, s.injScanner, s.policyConfig)
@@ -252,7 +289,7 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 		s.streamableProxy.decisionLog = s.decisionLog
 	}
 
-	s.handler = NewHandler(s.decisionLog, pipeline, s.capabilityEval, s.logger)
+	s.handler = NewHandler(s.decisionLog, pipeline, s.capabilityEval, s.trustVerifier, s.policyConfig, s.logger)
 	s.proxy = goproxy.NewProxyHttpServer()
 
 	s.logger.Info().
@@ -458,7 +495,15 @@ func (s *ProxyServer) RuntimeEvaluator() *RuntimeEvaluator { return s.capability
 // PolicyConfig returns the active policy configuration.
 func (s *ProxyServer) PolicyConfig() *PolicyConfig { return s.policyConfig }
 
+// TrustVerifier returns the trust verifier instance (nil if not configured).
+func (s *ProxyServer) TrustVerifier() *TrustVerifier { return s.trustVerifier }
+
 func (s *ProxyServer) cleanup() {
+	// Phase 13: Close TrustVerifier to cancel in-flight verification goroutines.
+	if s.trustVerifier != nil {
+		s.trustVerifier.Close()
+	}
+
 	// Phase 12: Close ML classifier resources.
 	if s.mlCloser != nil {
 		s.mlCloser.Close()

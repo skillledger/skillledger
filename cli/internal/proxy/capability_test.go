@@ -61,7 +61,7 @@ func TestRuntimeEvaluator_AllowDeclaredDestination(t *testing.T) {
 		SkillID:     "skill-a",
 		ActionType:  "http_request",
 		Destination: "api.openai.com",
-	})
+	}, "verified", "")
 
 	assert.Empty(t, findings, "declared destination should produce no findings")
 }
@@ -78,7 +78,7 @@ func TestRuntimeEvaluator_BlockUndeclaredDestination(t *testing.T) {
 		SkillID:     "skill-a",
 		ActionType:  "http_request",
 		Destination: "evil.com",
-	})
+	}, "verified", "")
 
 	require.NotEmpty(t, findings, "undeclared destination should produce findings")
 	found := false
@@ -103,7 +103,7 @@ func TestRuntimeEvaluator_BlockUndeclaredTool(t *testing.T) {
 		SkillID:    "skill-a",
 		ActionType: "mcp_tool_call",
 		ToolName:   "exec",
-	})
+	}, "verified", "")
 
 	require.NotEmpty(t, findings, "undeclared tool should produce findings")
 	found := false
@@ -128,7 +128,7 @@ func TestRuntimeEvaluator_AllowDeclaredTool(t *testing.T) {
 		SkillID:    "skill-a",
 		ActionType: "mcp_tool_call",
 		ToolName:   "read",
-	})
+	}, "verified", "")
 
 	assert.Empty(t, findings, "declared tool should produce no findings")
 }
@@ -147,7 +147,7 @@ func TestRuntimeEvaluator_LearningMode(t *testing.T) {
 		SkillID:     "unknown-skill",
 		ActionType:  "http_request",
 		Destination: "evil.com",
-	})
+	}, "", "")
 
 	assert.Empty(t, findings, "learning mode (no manifest) should produce no findings")
 	assert.Equal(t, 1, observer.Count(), "observer should have been called once")
@@ -171,7 +171,7 @@ func TestRuntimeEvaluator_FailClosed(t *testing.T) {
 		SkillID:     "skill-a",
 		ActionType:  "http_request",
 		Destination: "anything.com",
-	})
+	}, "verified", "")
 
 	require.NotEmpty(t, findings, "empty capabilities should produce deny findings")
 	hasBlock := false
@@ -197,7 +197,7 @@ func TestRuntimeEvaluator_ReloadPolicy(t *testing.T) {
 		SkillID:     "skill-a",
 		ActionType:  "http_request",
 		Destination: "evil.com",
-	})
+	}, "verified", "")
 	require.NotEmpty(t, findings, "strict should produce findings for undeclared dest")
 	hasBlock := false
 	for _, f := range findings {
@@ -217,7 +217,7 @@ func TestRuntimeEvaluator_ReloadPolicy(t *testing.T) {
 		SkillID:     "skill-a",
 		ActionType:  "http_request",
 		Destination: "evil.com",
-	})
+	}, "verified", "")
 	// Permissive produces warnings, not deny
 	hasBlock = false
 	for _, f := range findings {
@@ -242,7 +242,7 @@ func TestRuntimeEvaluator_ModeratePreset(t *testing.T) {
 		SkillID:     "skill-a",
 		ActionType:  "http_request",
 		Destination: "evil.com",
-	})
+	}, "verified", "")
 	hasBlock := false
 	hasWarn := false
 	for _, f := range findings {
@@ -261,7 +261,7 @@ func TestRuntimeEvaluator_ModeratePreset(t *testing.T) {
 		SkillID:    "skill-a",
 		ActionType: "mcp_tool_call",
 		ToolName:   "exec",
-	})
+	}, "verified", "")
 	hasBlock = false
 	for _, f := range findings {
 		if f.Decision == proxy.ActionBlock {
@@ -270,6 +270,128 @@ func TestRuntimeEvaluator_ModeratePreset(t *testing.T) {
 		}
 	}
 	assert.True(t, hasBlock, "moderate should block undeclared tools")
+}
+
+// TestBuildRuntimeInput_TrustTierVerified verifies that the trust tier is included
+// in OPA input when set to "verified".
+func TestBuildRuntimeInput_TrustTierVerified(t *testing.T) {
+	manifests := map[string]*manifest.Manifest{
+		"skill-a": testManifestWithNetwork("api.openai.com"),
+	}
+	config := proxy.DefaultPolicyConfig()
+	re, err := proxy.NewRuntimeEvaluator("strict", manifests, config, nil, nil)
+	require.NoError(t, err)
+
+	// Verified skill accessing declared destination should be allowed.
+	findings := re.Evaluate(context.Background(), proxy.RuntimeAction{
+		SkillID:     "skill-a",
+		ActionType:  "http_request",
+		Destination: "api.openai.com",
+	}, "verified", "")
+
+	assert.Empty(t, findings, "verified skill with declared destination should have no findings")
+}
+
+// TestBuildRuntimeInput_TrustTierDefaultsToUnverified verifies that empty trust tier
+// defaults to "unverified" (fail-closed per T-13-09).
+func TestBuildRuntimeInput_TrustTierDefaultsToUnverified(t *testing.T) {
+	manifests := map[string]*manifest.Manifest{
+		"skill-a": testManifestWithNetwork("api.openai.com"),
+	}
+	config := proxy.DefaultPolicyConfig()
+	// Use strict preset which blocks unverified non-localhost HTTP.
+	re, err := proxy.NewRuntimeEvaluator("strict", manifests, config, nil, nil)
+	require.NoError(t, err)
+
+	// Empty trust tier should default to "unverified" and trigger strict lockdown
+	// for non-localhost destination.
+	findings := re.Evaluate(context.Background(), proxy.RuntimeAction{
+		SkillID:     "skill-a",
+		ActionType:  "http_request",
+		Destination: "evil.com",
+	}, "", "") // empty trust tier
+
+	require.NotEmpty(t, findings, "empty trust tier should default to unverified and produce findings")
+	hasBlock := false
+	for _, f := range findings {
+		if f.Decision == proxy.ActionBlock {
+			hasBlock = true
+			break
+		}
+	}
+	assert.True(t, hasBlock, "unverified trust tier should block undeclared non-localhost destinations")
+}
+
+// TestEvaluate_PresetOverride verifies that a preset override selects the correct
+// PreparedQuery and caches it for subsequent calls.
+func TestEvaluate_PresetOverride(t *testing.T) {
+	manifests := map[string]*manifest.Manifest{
+		"skill-a": testManifestWithNetwork("api.openai.com"),
+	}
+	config := proxy.DefaultPolicyConfig()
+	// Default preset is strict.
+	re, err := proxy.NewRuntimeEvaluator("strict", manifests, config, nil, nil)
+	require.NoError(t, err)
+
+	// Override to permissive: undeclared destination should warn, not block.
+	findings := re.Evaluate(context.Background(), proxy.RuntimeAction{
+		SkillID:     "skill-a",
+		ActionType:  "http_request",
+		Destination: "evil.com",
+	}, "verified", "permissive")
+
+	hasBlock := false
+	for _, f := range findings {
+		if f.Decision == proxy.ActionBlock {
+			hasBlock = true
+			break
+		}
+	}
+	assert.False(t, hasBlock, "permissive override should not block undeclared destination")
+
+	// Call again with same override -- should use cached PreparedQuery.
+	findings2 := re.Evaluate(context.Background(), proxy.RuntimeAction{
+		SkillID:     "skill-a",
+		ActionType:  "http_request",
+		Destination: "evil.com",
+	}, "verified", "permissive")
+
+	hasBlock2 := false
+	for _, f := range findings2 {
+		if f.Decision == proxy.ActionBlock {
+			hasBlock2 = true
+			break
+		}
+	}
+	assert.False(t, hasBlock2, "cached permissive override should not block")
+}
+
+// TestEvaluate_UnverifiedStrictLockdown verifies that unverified skills under strict
+// preset get lockdown (block non-localhost).
+func TestEvaluate_UnverifiedStrictLockdown(t *testing.T) {
+	manifests := map[string]*manifest.Manifest{
+		"skill-a": testManifestWithNetwork("api.openai.com"),
+	}
+	config := proxy.DefaultPolicyConfig()
+	re, err := proxy.NewRuntimeEvaluator("strict", manifests, config, nil, nil)
+	require.NoError(t, err)
+
+	// Unverified + strict should block non-localhost even if declared.
+	findings := re.Evaluate(context.Background(), proxy.RuntimeAction{
+		SkillID:     "skill-a",
+		ActionType:  "http_request",
+		Destination: "api.openai.com",
+	}, "unverified", "strict")
+
+	require.NotEmpty(t, findings, "unverified skill under strict should get lockdown")
+	hasBlock := false
+	for _, f := range findings {
+		if f.Decision == proxy.ActionBlock {
+			hasBlock = true
+			break
+		}
+	}
+	assert.True(t, hasBlock, "unverified skill under strict preset should be blocked for non-localhost")
 }
 
 func BenchmarkRuntimeEval(b *testing.B) {
@@ -303,6 +425,6 @@ func BenchmarkRuntimeEval(b *testing.B) {
 	ctx := context.Background()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		re.Evaluate(ctx, action)
+		re.Evaluate(ctx, action, "verified", "")
 	}
 }

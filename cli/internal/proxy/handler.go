@@ -15,16 +15,21 @@ type Handler struct {
 	decisionLog    *DecisionLog
 	pipeline       *ScanPipeline
 	capabilityEval *RuntimeEvaluator
+	trustVerifier  *TrustVerifier
+	policyConfig   *PolicyConfig
 	logger         zerolog.Logger
 }
 
 // NewHandler creates a new Handler backed by the given decision log, scanner pipeline,
-// and optional RuntimeEvaluator for capability enforcement.
-func NewHandler(dl *DecisionLog, pipeline *ScanPipeline, capEval *RuntimeEvaluator, logger zerolog.Logger) *Handler {
+// optional RuntimeEvaluator for capability enforcement, optional TrustVerifier for
+// provenance-based trust tier lookup, and optional PolicyConfig for per-tier preset selection.
+func NewHandler(dl *DecisionLog, pipeline *ScanPipeline, capEval *RuntimeEvaluator, tv *TrustVerifier, pc *PolicyConfig, logger zerolog.Logger) *Handler {
 	return &Handler{
 		decisionLog:    dl,
 		pipeline:       pipeline,
 		capabilityEval: capEval,
+		trustVerifier:  tv,
+		policyConfig:   pc,
 		logger:         logger,
 	}
 }
@@ -60,7 +65,8 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 		}
 	}
 
-	// Runtime capability enforcement (Phase 11: after scanners).
+	// Phase 13: Determine trust tier and per-tier preset for capability evaluation.
+	var resolvedTrustTier string
 	if h.capabilityEval != nil {
 		action := RuntimeAction{
 			SkillID:     "", // HTTP proxy requests have no explicit skill ID; resolved in Phase 12+
@@ -68,7 +74,17 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 			Destination: r.URL.Host,
 			Method:      r.Method,
 		}
-		capFindings := h.capabilityEval.Evaluate(r.Context(), action)
+
+		var presetOverride string
+		if h.trustVerifier != nil && action.SkillID != "" {
+			tier := h.trustVerifier.GetTier(action.SkillID)
+			resolvedTrustTier = string(tier)
+		}
+		if h.policyConfig != nil && resolvedTrustTier != "" {
+			presetOverride = h.policyConfig.ProvenancePresetFor(resolvedTrustTier)
+		}
+
+		capFindings := h.capabilityEval.Evaluate(r.Context(), action, resolvedTrustTier, presetOverride)
 		findings = append(findings, capFindings...)
 		if len(findings) > 0 {
 			decision = HighestDecision(findings)
@@ -92,6 +108,7 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 		Decision:    decision,
 		Reason:      reason,
 		Protocol:    scheme,
+		TrustTier:   resolvedTrustTier,
 	}
 	h.decisionLog.Record(entry)
 
@@ -104,6 +121,9 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 		Str("method", r.Method).
 		Str("host", r.URL.Host).
 		Str("decision", string(decision))
+	if entry.TrustTier != "" {
+		logEvent = logEvent.Str("trust_tier", entry.TrustTier)
+	}
 	if len(findings) > 0 {
 		logEvent = logEvent.Int("findings", len(findings))
 	}

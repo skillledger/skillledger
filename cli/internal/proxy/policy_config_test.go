@@ -99,3 +99,131 @@ func TestActionFor_Phase12ViolationTypes(t *testing.T) {
 	// Prompt injection: warn-only default (CONTEXT.md).
 	assert.Equal(t, proxy.ActionWarn, pc.ActionFor("prompt_injection"))
 }
+
+// --- Provenance tier-to-preset mapping tests ---
+
+func TestLoadPolicyConfig_WithProvenance(t *testing.T) {
+	yamlData := []byte(`
+preset: moderate
+provenance:
+  verified: moderate
+  partial: strict
+  unverified: block_all
+response_actions:
+  secret_exfil: warn
+`)
+	pc, err := proxy.LoadPolicyConfig(yamlData)
+	require.NoError(t, err)
+	assert.Equal(t, "moderate", pc.Preset)
+	assert.Equal(t, "moderate", pc.Provenance["verified"])
+	assert.Equal(t, "strict", pc.Provenance["partial"])
+	assert.Equal(t, "block_all", pc.Provenance["unverified"])
+	assert.Equal(t, "warn", pc.ResponseActions["secret_exfil"])
+}
+
+func TestLoadPolicyConfig_InvalidProvenancePreset(t *testing.T) {
+	yamlData := []byte(`
+preset: moderate
+provenance:
+  verified: nonexistent
+`)
+	_, err := proxy.LoadPolicyConfig(yamlData)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid provenance preset")
+}
+
+func TestLoadPolicyConfig_InvalidTierName(t *testing.T) {
+	yamlData := []byte(`
+preset: moderate
+provenance:
+  unknown_tier: strict
+`)
+	_, err := proxy.LoadPolicyConfig(yamlData)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid trust tier")
+}
+
+func TestProvenancePresetFor_Defaults(t *testing.T) {
+	pc := proxy.DefaultPolicyConfig()
+	assert.Equal(t, "moderate", pc.ProvenancePresetFor("verified"))
+	assert.Equal(t, "strict", pc.ProvenancePresetFor("partial"))
+	assert.Equal(t, "strict", pc.ProvenancePresetFor("unverified"))
+}
+
+func TestProvenancePresetFor_CustomMapping(t *testing.T) {
+	yamlData := []byte(`
+preset: moderate
+provenance:
+  verified: permissive
+  partial: moderate
+  unverified: strict
+`)
+	pc, err := proxy.LoadPolicyConfig(yamlData)
+	require.NoError(t, err)
+	assert.Equal(t, "permissive", pc.ProvenancePresetFor("verified"))
+	assert.Equal(t, "moderate", pc.ProvenancePresetFor("partial"))
+	assert.Equal(t, "strict", pc.ProvenancePresetFor("unverified"))
+}
+
+func TestProvenancePresetFor_BlockAll(t *testing.T) {
+	yamlData := []byte(`
+preset: moderate
+provenance:
+  unverified: block_all
+`)
+	pc, err := proxy.LoadPolicyConfig(yamlData)
+	require.NoError(t, err)
+	assert.Equal(t, "block_all", pc.ProvenancePresetFor("unverified"))
+	// Non-configured tiers fall back to defaults
+	assert.Equal(t, "moderate", pc.ProvenancePresetFor("verified"))
+	assert.Equal(t, "strict", pc.ProvenancePresetFor("partial"))
+}
+
+func TestMergePolicyConfigs_Provenance(t *testing.T) {
+	base := &proxy.PolicyConfig{
+		Preset: "moderate",
+		ResponseActions: map[string]string{
+			"secret_exfil": "warn",
+		},
+		Provenance: map[string]string{
+			"verified":   "moderate",
+			"partial":    "strict",
+			"unverified": "strict",
+		},
+	}
+	override := &proxy.PolicyConfig{
+		Provenance: map[string]string{
+			"unverified": "block_all",
+		},
+	}
+
+	result := proxy.MergePolicyConfigs(base, override)
+	assert.Equal(t, "moderate", result.Provenance["verified"], "non-overridden provenance should be preserved")
+	assert.Equal(t, "strict", result.Provenance["partial"], "non-overridden provenance should be preserved")
+	assert.Equal(t, "block_all", result.Provenance["unverified"], "overridden provenance should win")
+}
+
+func TestDefaultPolicyConfig_NilProvenance(t *testing.T) {
+	pc := proxy.DefaultPolicyConfig()
+	assert.Nil(t, pc.Provenance, "default config should have nil Provenance")
+}
+
+func TestLoadPolicyConfig_WithoutProvenance_StillWorks(t *testing.T) {
+	yamlData := []byte(`
+preset: strict
+response_actions:
+  secret_exfil: block
+`)
+	pc, err := proxy.LoadPolicyConfig(yamlData)
+	require.NoError(t, err)
+	assert.Equal(t, "strict", pc.Preset)
+	assert.Nil(t, pc.Provenance)
+	// ProvenancePresetFor should still return defaults
+	assert.Equal(t, "moderate", pc.ProvenancePresetFor("verified"))
+	assert.Equal(t, "strict", pc.ProvenancePresetFor("unverified"))
+}
+
+func TestProvenancePresetFor_UnknownTier_DefaultsToStrict(t *testing.T) {
+	pc := proxy.DefaultPolicyConfig()
+	assert.Equal(t, "strict", pc.ProvenancePresetFor("unknown"))
+}

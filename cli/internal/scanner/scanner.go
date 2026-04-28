@@ -30,6 +30,7 @@ type IOCMatchInfo struct {
 type YARAMatchInfo struct {
 	RuleName string   `json:"rule_name"`
 	Tags     []string `json:"tags,omitempty"`
+	Severity string   `json:"severity,omitempty"` // from YARA rule meta "severity" field
 }
 
 // IOCChecker is an interface for IOC matching (implemented by ioc.Database).

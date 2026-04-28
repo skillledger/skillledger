@@ -114,6 +114,11 @@ func (e *Engine) Scan(content []byte) ([]scanner.YARAMatchInfo, error) {
 			RuleName: m.Rule,
 		}
 
+		// Extract severity from meta "severity" field if present.
+		if sevVal := m.MetaString("severity", ""); sevVal != "" {
+			info.Severity = sevVal
+		}
+
 		// Extract tags from meta "tags" field if present (comma-separated).
 		// yargo v0.2.0 does not expose YARA tags directly in the AST,
 		// so we use a meta convention instead.

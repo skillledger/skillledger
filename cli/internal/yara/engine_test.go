@@ -151,6 +151,53 @@ func TestEngine_Scan_WithTags(t *testing.T) {
 	assert.Equal(t, []string{"malware", "trojan"}, matches[0].Tags)
 }
 
+func TestEngine_Scan_WithSeverity(t *testing.T) {
+	dir := t.TempDir()
+	rule := `rule severe_rule {
+    meta:
+        severity = "high"
+        tags = "exfil"
+    strings:
+        $a = "secret_exfiltration"
+    condition:
+        $a
+}
+`
+	err := os.WriteFile(filepath.Join(dir, "severe.yar"), []byte(rule), 0644)
+	require.NoError(t, err)
+
+	engine, err := yara.NewEngine(dir)
+	require.NoError(t, err)
+
+	matches, err := engine.Scan([]byte("detected secret_exfiltration attempt"))
+	require.NoError(t, err)
+	require.Len(t, matches, 1)
+	assert.Equal(t, "severe_rule", matches[0].RuleName)
+	assert.Equal(t, "high", matches[0].Severity)
+	assert.Equal(t, []string{"exfil"}, matches[0].Tags)
+}
+
+func TestEngine_Scan_SeverityDefaultsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	rule := `rule no_severity_rule {
+    strings:
+        $a = "some_pattern"
+    condition:
+        $a
+}
+`
+	err := os.WriteFile(filepath.Join(dir, "nosev.yar"), []byte(rule), 0644)
+	require.NoError(t, err)
+
+	engine, err := yara.NewEngine(dir)
+	require.NoError(t, err)
+
+	matches, err := engine.Scan([]byte("found some_pattern here"))
+	require.NoError(t, err)
+	require.Len(t, matches, 1)
+	assert.Equal(t, "", matches[0].Severity, "Severity should be empty when no meta severity is present")
+}
+
 func TestEngine_Scan_YaraExtension(t *testing.T) {
 	dir := t.TempDir()
 	rule := `rule yara_ext_rule {

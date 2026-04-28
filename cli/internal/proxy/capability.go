@@ -29,11 +29,14 @@ type ActionObserver interface {
 
 // RuntimeEvaluator evaluates skill actions against capability policy using OPA.
 type RuntimeEvaluator struct {
-	prepared  rego.PreparedEvalQuery
-	manifests map[string]*manifest.Manifest
-	config    *PolicyConfig
-	observer  ActionObserver
-	mu        sync.RWMutex
+	prepared      rego.PreparedEvalQuery
+	defaultPreset string
+	presetCache   map[string]rego.PreparedEvalQuery
+	manifests     map[string]*manifest.Manifest
+	config        *PolicyConfig
+	observer      ActionObserver
+	extraModules  map[string]string
+	mu            sync.RWMutex
 }
 
 // NewRuntimeEvaluator creates a RuntimeEvaluator with the given preset and manifests.
@@ -52,11 +55,18 @@ func NewRuntimeEvaluator(presetName string, manifests map[string]*manifest.Manif
 		manifests = make(map[string]*manifest.Manifest)
 	}
 
+	presetCache := map[string]rego.PreparedEvalQuery{
+		presetName: prepared,
+	}
+
 	return &RuntimeEvaluator{
-		prepared:  prepared,
-		manifests: manifests,
-		config:    config,
-		observer:  observer,
+		prepared:      prepared,
+		defaultPreset: presetName,
+		presetCache:   presetCache,
+		manifests:     manifests,
+		config:        config,
+		observer:      observer,
+		extraModules:  extraModules,
 	}, nil
 }
 
@@ -79,11 +89,13 @@ func compileRuntimePolicy(regoSource string, extraModules map[string]string) (re
 }
 
 // Evaluate checks a RuntimeAction against the skill's declared capabilities.
+// trustTier is injected into OPA input (defaults to "unverified" if empty).
+// presetOverride selects a different Rego preset for this evaluation; if empty,
+// the default configured preset is used. PreparedQuery objects are cached per preset.
 // Returns findings with allow/block/warn decisions. Fail-closed on errors.
-func (re *RuntimeEvaluator) Evaluate(ctx context.Context, action RuntimeAction) []Finding {
-	re.mu.RLock()
-	prepared := re.prepared
-	re.mu.RUnlock()
+func (re *RuntimeEvaluator) Evaluate(ctx context.Context, action RuntimeAction, trustTier string, presetOverride string) []Finding {
+	// Set trust tier on action for OPA input.
+	action.TrustTier = trustTier
 
 	m, ok := re.manifests[action.SkillID]
 	if !ok {
@@ -99,20 +111,70 @@ func (re *RuntimeEvaluator) Evaluate(ctx context.Context, action RuntimeAction) 
 		re.observer.Observe(action)
 	}
 
+	// Resolve which prepared query to use.
+	prepared, err := re.resolvePreset(presetOverride)
+	if err != nil {
+		return []Finding{{
+			Scanner:     "capability",
+			Severity:    "critical",
+			Description: "failed to load preset override: " + err.Error(),
+			Decision:    ActionBlock,
+		}}
+	}
+
 	input := buildRuntimeInput(action, m)
 
-	rs, err := prepared.Eval(ctx, rego.EvalInput(input))
-	if err != nil {
+	rs, evalErr := prepared.Eval(ctx, rego.EvalInput(input))
+	if evalErr != nil {
 		// Fail-closed: OPA error produces block finding
 		return []Finding{{
 			Scanner:     "capability",
 			Severity:    "critical",
-			Description: "policy evaluation error: " + err.Error(),
+			Description: "policy evaluation error: " + evalErr.Error(),
 			Decision:    ActionBlock,
 		}}
 	}
 
 	return re.parseRuntimeResult(rs)
+}
+
+// resolvePreset returns the PreparedEvalQuery for the given preset name.
+// If presetName is empty, the default preset is used. Results are cached.
+func (re *RuntimeEvaluator) resolvePreset(presetName string) (rego.PreparedEvalQuery, error) {
+	if presetName == "" {
+		re.mu.RLock()
+		p := re.prepared
+		re.mu.RUnlock()
+		return p, nil
+	}
+
+	re.mu.RLock()
+	if cached, ok := re.presetCache[presetName]; ok {
+		re.mu.RUnlock()
+		return cached, nil
+	}
+	re.mu.RUnlock()
+
+	// Compile the preset outside the lock.
+	regoSource, err := preset.GetRuntime(presetName)
+	if err != nil {
+		return rego.PreparedEvalQuery{}, fmt.Errorf("loading runtime preset %q: %w", presetName, err)
+	}
+	compiled, err := compileRuntimePolicy(regoSource, re.extraModules)
+	if err != nil {
+		return rego.PreparedEvalQuery{}, err
+	}
+
+	// Cache under write lock (double-check to avoid redundant compilation).
+	re.mu.Lock()
+	if cached, ok := re.presetCache[presetName]; ok {
+		re.mu.Unlock()
+		return cached, nil
+	}
+	re.presetCache[presetName] = compiled
+	re.mu.Unlock()
+
+	return compiled, nil
 }
 
 // buildRuntimeInput constructs the OPA input map from a RuntimeAction and Manifest.
@@ -135,11 +197,11 @@ func buildRuntimeInput(action RuntimeAction, m *manifest.Manifest) map[string]an
 		secrets = []string{}
 	}
 
-	// Default trust_tier to "verified" when absent for backward compatibility
-	// (pre-Phase 13 callers don't set TrustTier)
+	// Default trust_tier to "unverified" (fail-closed per T-13-09/T-13-10).
+	// Callers should explicitly set TrustTier via Evaluate's trustTier parameter.
 	trustTier := action.TrustTier
 	if trustTier == "" {
-		trustTier = "verified"
+		trustTier = "unverified"
 	}
 
 	return map[string]any{
@@ -273,6 +335,8 @@ func (re *RuntimeEvaluator) ReloadPolicy(presetName string, extraModules map[str
 
 	re.mu.Lock()
 	re.prepared = prepared
+	re.defaultPreset = presetName
+	re.presetCache[presetName] = prepared
 	re.mu.Unlock()
 
 	return nil

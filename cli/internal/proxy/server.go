@@ -252,7 +252,7 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 		s.streamableProxy.decisionLog = s.decisionLog
 	}
 
-	s.handler = NewHandler(s.decisionLog, pipeline, s.capabilityEval, s.logger)
+	s.handler = NewHandler(s.decisionLog, pipeline, s.capabilityEval, nil, s.policyConfig, s.logger)
 	s.proxy = goproxy.NewProxyHttpServer()
 
 	s.logger.Info().

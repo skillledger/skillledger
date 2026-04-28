@@ -19,7 +19,7 @@ func TestHandler_OnRequest_SecretDetection(t *testing.T) {
 	dl := proxy.NewDecisionLog(100)
 	patterns := proxy.LoadPatterns()
 	pipeline := proxy.NewScanPipeline(proxy.NewSecretScanner(patterns))
-	h := proxy.NewHandler(dl, pipeline, nil, zerolog.Nop())
+	h := proxy.NewHandler(dl, pipeline, nil, nil, nil, zerolog.Nop())
 
 	body := `{"data": "my key is AKIA1234567890ABCDEF"}`
 	req, err := http.NewRequest(http.MethodPost, "http://api.example.com/upload", strings.NewReader(body))
@@ -48,7 +48,7 @@ func TestHandler_OnRequest_IOCBlock(t *testing.T) {
 		Source:      "test",
 	})
 	pipeline := proxy.NewScanPipeline(proxy.NewNetworkScanner(db))
-	h := proxy.NewHandler(dl, pipeline, nil, zerolog.Nop())
+	h := proxy.NewHandler(dl, pipeline, nil, nil, nil, zerolog.Nop())
 
 	req, err := http.NewRequest(http.MethodGet, "http://evil.com/data", nil)
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestHandler_OnRequest_NoFindings(t *testing.T) {
 		proxy.NewDNSExfilScanner(),
 		proxy.NewEntropyTracker(),
 	)
-	h := proxy.NewHandler(dl, pipeline, nil, zerolog.Nop())
+	h := proxy.NewHandler(dl, pipeline, nil, nil, nil, zerolog.Nop())
 
 	req, err := http.NewRequest(http.MethodGet, "http://api.github.com/repos", strings.NewReader("hello world"))
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestHandler_OnRequest_BodyPreserved(t *testing.T) {
 	dl := proxy.NewDecisionLog(100)
 	patterns := proxy.LoadPatterns()
 	pipeline := proxy.NewScanPipeline(proxy.NewSecretScanner(patterns))
-	h := proxy.NewHandler(dl, pipeline, nil, zerolog.Nop())
+	h := proxy.NewHandler(dl, pipeline, nil, nil, nil, zerolog.Nop())
 
 	originalBody := "test body content with AKIA1234567890ABCDEF"
 	req, err := http.NewRequest(http.MethodPost, "http://api.example.com/upload", strings.NewReader(originalBody))
@@ -110,7 +110,7 @@ func TestHandler_OnRequest_BodyPreserved(t *testing.T) {
 
 func TestHandler_OnRequest_NilPipeline(t *testing.T) {
 	dl := proxy.NewDecisionLog(100)
-	h := proxy.NewHandler(dl, nil, nil, zerolog.Nop())
+	h := proxy.NewHandler(dl, nil, nil, nil, nil, zerolog.Nop())
 
 	body := `{"secret": "AKIA1234567890ABCDEF"}`
 	req, err := http.NewRequest(http.MethodPost, "http://api.example.com/upload", strings.NewReader(body))
@@ -131,7 +131,7 @@ func TestHandler_OnResponse_NoScanning(t *testing.T) {
 	dl := proxy.NewDecisionLog(100)
 	patterns := proxy.LoadPatterns()
 	pipeline := proxy.NewScanPipeline(proxy.NewSecretScanner(patterns))
-	h := proxy.NewHandler(dl, pipeline, nil, zerolog.Nop())
+	h := proxy.NewHandler(dl, pipeline, nil, nil, nil, zerolog.Nop())
 
 	// First make a request so we have an action ID in context.
 	req, _ := http.NewRequest(http.MethodGet, "http://api.example.com/data", nil)
@@ -165,7 +165,7 @@ func TestHandler_OnRequest_NilBody(t *testing.T) {
 	dl := proxy.NewDecisionLog(100)
 	patterns := proxy.LoadPatterns()
 	pipeline := proxy.NewScanPipeline(proxy.NewSecretScanner(patterns))
-	h := proxy.NewHandler(dl, pipeline, nil, zerolog.Nop())
+	h := proxy.NewHandler(dl, pipeline, nil, nil, nil, zerolog.Nop())
 
 	req := &http.Request{
 		Method: http.MethodGet,

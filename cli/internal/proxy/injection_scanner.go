@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -16,19 +15,6 @@ import (
 // with a direction indicator ("request" or "response").
 type MCPMessageScanner interface {
 	ScanMessage(msg *JSONRPCMessage, direction string) []Finding
-}
-
-// MCPToolCallResult is the result field of a tools/call JSON-RPC response.
-type MCPToolCallResult struct {
-	Content []MCPContent `json:"content"`
-	IsError bool         `json:"isError"`
-}
-
-// MCPContent represents a content block in an MCP tool call result.
-type MCPContent struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
-	Data string `json:"data,omitempty"` // base64 for image/audio
 }
 
 // base64BlobRe detects potential base64-encoded blobs in text.
@@ -120,22 +106,6 @@ func (s *InjectionScanner) ScanMessage(msg *JSONRPCMessage, direction string) []
 	}
 
 	return deduplicateFindings(allFindings)
-}
-
-// extractTextFromToolResult pulls all scannable text fields from a tool call result.
-// Fields shorter than 50 chars are skipped per CONTEXT.md.
-func extractTextFromToolResult(result json.RawMessage) []string {
-	var r MCPToolCallResult
-	if err := json.Unmarshal(result, &r); err != nil {
-		return nil
-	}
-	var texts []string
-	for _, c := range r.Content {
-		if c.Type == "text" && len(c.Text) > 50 {
-			texts = append(texts, c.Text)
-		}
-	}
-	return texts
 }
 
 // scanText is the core scanning logic. It checks the allowlist, runs heuristic

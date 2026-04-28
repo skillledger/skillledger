@@ -13,6 +13,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/skillledger/skillledger/internal/proxy"
+	"github.com/skillledger/skillledger/internal/signer"
+	"github.com/skillledger/skillledger/internal/tlog"
+	"github.com/skillledger/skillledger/internal/verify"
 )
 
 var proxyStartCmd = &cobra.Command{
@@ -36,6 +39,8 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 	allowlistPath, _ := cmd.Flags().GetString("injection-allowlist")
 	deepScan, _ := cmd.Flags().GetBool("deep-scan")
 	streamableMCPURL, _ := cmd.Flags().GetString("streamable-mcp-url")
+	lockfileDir, _ := cmd.Flags().GetString("lockfile-dir")
+	tlogURL, _ := cmd.Flags().GetString("tlog-url")
 	baseDir := proxyBaseDir()
 
 	// Check if proxy is already running.
@@ -97,6 +102,15 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 	if streamableMCPURL != "" {
 		opts = append(opts, proxy.WithStreamableMCPURL(streamableMCPURL))
 	}
+	if lockfileDir != "" {
+		opts = append(opts, proxy.WithLockfileDir(lockfileDir))
+
+		// Construct v1 verify pipeline for trust verification.
+		sigVerifier := signer.NewVerifier()
+		tlogClient := tlog.NewClient(tlog.WithServiceURL(tlogURL))
+		pipeline := verify.NewPipeline(sigVerifier, tlogClient, nil)
+		opts = append(opts, proxy.WithVerifyPipeline(pipeline))
+	}
 
 	server := proxy.NewProxyServer(opts...)
 
@@ -108,6 +122,9 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 	}
 	if streamableMCPURL != "" {
 		log.Info().Str("streamable_mcp_url", streamableMCPURL).Msg("Streamable HTTP MCP proxy -> /mcp")
+	}
+	if lockfileDir != "" {
+		log.Info().Str("lockfile_dir", lockfileDir).Str("tlog_url", tlogURL).Msg("provenance verification enabled")
 	}
 	log.Info().Msg("Run `skillledger proxy trust` to install CA into system trust store")
 
@@ -137,4 +154,8 @@ func init() {
 	proxyStartCmd.Flags().String("injection-allowlist", "", "path to injection allowlist YAML for false positive suppression")
 	proxyStartCmd.Flags().Bool("deep-scan", false, "always run ML classifier (not just on inconclusive heuristic)")
 	proxyStartCmd.Flags().String("streamable-mcp-url", "", "target Streamable HTTP MCP server URL (e.g., ws://localhost:3000/mcp)")
+
+	// Phase 13: Provenance-aware policy flags.
+	proxyStartCmd.Flags().String("lockfile-dir", "", "directory containing skill lockfiles for provenance verification")
+	proxyStartCmd.Flags().String("tlog-url", "http://localhost:8080", "transparency log service URL for provenance verification")
 }

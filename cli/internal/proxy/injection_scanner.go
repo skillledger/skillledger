@@ -1,8 +1,12 @@
 package proxy
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 
 	ahocorasick "github.com/cloudflare/ahocorasick"
 )
@@ -27,6 +31,10 @@ type MCPContent struct {
 	Data string `json:"data,omitempty"` // base64 for image/audio
 }
 
+// base64BlobRe detects potential base64-encoded blobs in text.
+// Minimum 40 chars of base64 alphabet followed by optional padding.
+var base64BlobRe = regexp.MustCompile(`[A-Za-z0-9+/]{40,}={0,3}`)
+
 // InjectionScanner detects prompt injection attacks in MCP tool outputs and
 // HTTP response bodies. It implements both the Scanner interface (for HTTP) and
 // the MCPMessageScanner interface (for MCP JSON-RPC messages).
@@ -42,9 +50,9 @@ type InjectionScanner struct {
 	patterns    []InjectionPattern
 	prefixes    []string
 	allowlist   *InjectionAllowlist
-	deepScan    bool                                          // --deep-scan flag: always invoke ML if available
+	deepScan    bool                                           // --deep-scan flag: always invoke ML if available
 	classifier  interface{ Classify(string) (float64, error) } // nil if ML unavailable
-	mlThreshold float64                                       // default 0.85
+	mlThreshold float64                                        // default 0.85
 }
 
 // NewInjectionScanner creates an InjectionScanner with the bundled patterns and
@@ -133,20 +141,137 @@ func extractTextFromToolResult(result json.RawMessage) []string {
 // scanText is the core scanning logic. It checks the allowlist, runs heuristic
 // detection, handles base64 re-scanning, and optionally invokes the ML classifier.
 func (s *InjectionScanner) scanText(text string, serverID string, toolName string) []Finding {
-	// Stub -- will be implemented in Task 2.
-	return nil
+	// Step 1: Check allowlist -- if server+tool are set and allowlisted, skip scanning.
+	if serverID != "" && toolName != "" && s.allowlist != nil && s.allowlist.IsAllowed(serverID, toolName) {
+		return nil
+	}
+
+	data := []byte(text)
+
+	// Step 2: Run heuristic Aho-Corasick + regex detection.
+	findings := s.scanBytes(data)
+
+	// Step 3: Check for base64-encoded payloads and re-scan decoded content.
+	// Depth limit: 1 (per RESEARCH.md Pitfall 8).
+	b64Matches := base64BlobRe.FindAll(data, -1)
+	for _, b64 := range b64Matches {
+		decoded, err := base64.StdEncoding.DecodeString(string(b64))
+		if err != nil {
+			// Try URL-safe base64 as well.
+			decoded, err = base64.URLEncoding.DecodeString(string(b64))
+			if err != nil {
+				continue
+			}
+		}
+		if len(decoded) <= 50 {
+			continue
+		}
+		// Re-scan decoded content (depth=1, no further recursion).
+		decodedFindings := s.scanBytes(decoded)
+		for i := range decodedFindings {
+			decodedFindings[i].Description += " (base64-decoded)"
+		}
+		findings = append(findings, decodedFindings...)
+	}
+
+	// Step 4: ML classifier (optional enhancement layer).
+	if s.classifier != nil && (s.deepScan || len(findings) == 0) {
+		score, err := s.classifier.Classify(text)
+		if err == nil && score > s.mlThreshold {
+			findings = append(findings, Finding{
+				Scanner:     "injection",
+				Severity:    "high",
+				Description: fmt.Sprintf("ML classifier detected prompt injection (confidence: %.2f)", score),
+				Pattern:     "ml-classifier",
+				Decision:    ActionWarn,
+			})
+		}
+	}
+
+	// Step 5: Deduplicate by pattern name.
+	return deduplicateFindings(findings)
 }
 
 // scanBytes runs the two-pass Aho-Corasick + regex detection on raw bytes.
+// Pass 1: Aho-Corasick identifies which pattern prefixes appear in data.
+// Pass 2: For each matched prefix, the corresponding regex confirms the match.
 func (s *InjectionScanner) scanBytes(data []byte) []Finding {
-	// Stub -- will be implemented in Task 2.
-	return nil
+	if len(data) == 0 {
+		return nil
+	}
+
+	// Pass 1: Aho-Corasick prefix scan.
+	hits := s.matcher.Match(data)
+
+	var findings []Finding
+	seen := make(map[string]bool)
+
+	for _, idx := range hits {
+		if idx < 0 || idx >= len(s.patterns) {
+			continue
+		}
+		pat := s.patterns[idx]
+		if seen[pat.Name] {
+			continue
+		}
+
+		// Pass 2: regex confirmation.
+		matchLoc := pat.Regex.FindIndex(data)
+		if matchLoc == nil {
+			continue
+		}
+
+		seen[pat.Name] = true
+		match := data[matchLoc[0]:matchLoc[1]]
+
+		// Truncate match value to 100 chars.
+		matchStr := string(match)
+		if len(matchStr) > 100 {
+			matchStr = matchStr[:100]
+		}
+
+		// Build context snippet around the match location.
+		snippet := contextSnippet(data, matchLoc[0], 200)
+
+		findings = append(findings, Finding{
+			Scanner:     "injection",
+			Severity:    pat.Severity,
+			Description: fmt.Sprintf("Prompt injection detected: %s (confidence: %.2f) ...context: %s", pat.Name, pat.Confidence, snippet),
+			Pattern:     pat.Name,
+			MatchValue:  matchStr,
+			Decision:    ActionWarn,
+		})
+	}
+
+	return findings
 }
 
 // contextSnippet extracts a substring around the match location for inclusion
 // in finding descriptions. Newlines are replaced with spaces. Result is
 // truncated to 200 chars.
 func contextSnippet(data []byte, matchStart int, radius int) string {
-	// Stub -- will be implemented in Task 2.
-	return ""
+	if len(data) == 0 {
+		return ""
+	}
+
+	start := matchStart - radius
+	if start < 0 {
+		start = 0
+	}
+	end := matchStart + radius
+	if end > len(data) {
+		end = len(data)
+	}
+
+	snippet := string(data[start:end])
+	// Replace newlines with spaces for single-line display.
+	snippet = strings.ReplaceAll(snippet, "\n", " ")
+	snippet = strings.ReplaceAll(snippet, "\r", " ")
+
+	// Truncate to 200 chars.
+	if len(snippet) > 200 {
+		snippet = snippet[:200]
+	}
+
+	return snippet
 }

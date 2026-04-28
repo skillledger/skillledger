@@ -19,6 +19,7 @@ type DecisionEntry struct {
 	Reason      string     `json:"reason"`
 	Protocol    string     `json:"protocol,omitempty"`
 	TrustTier   string     `json:"trust_tier,omitempty"`
+	Findings    []Finding  `json:"findings,omitempty"`
 }
 
 // DecisionLog is a thread-safe ring buffer that records proxy decisions.

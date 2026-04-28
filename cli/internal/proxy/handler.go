@@ -109,6 +109,7 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 		Reason:      reason,
 		Protocol:    scheme,
 		TrustTier:   resolvedTrustTier,
+		Findings:    findings,
 	}
 	h.decisionLog.Record(entry)
 

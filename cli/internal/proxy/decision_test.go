@@ -1,8 +1,10 @@
 package proxy_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/skillledger/skillledger/internal/proxy"
 	"github.com/stretchr/testify/assert"
@@ -158,4 +160,88 @@ func TestNewActionID(t *testing.T) {
 	assert.True(t, strings.HasPrefix(id1, "act-"))
 	assert.True(t, strings.HasPrefix(id2, "act-"))
 	assert.NotEqual(t, id1, id2)
+}
+
+func TestDecisionEntryWithFindings_MarshalJSON(t *testing.T) {
+	entry := proxy.DecisionEntry{
+		ActionID:  "act-12345678",
+		Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		Direction: "request",
+		Decision:  proxy.ActionWarn,
+		Reason:    "[high] secret: API key detected",
+		Findings: []proxy.Finding{
+			{
+				Scanner:     "secret",
+				Severity:    "high",
+				Description: "API key detected",
+				Decision:    proxy.ActionWarn,
+			},
+		},
+	}
+
+	data, err := json.Marshal(entry)
+	require.NoError(t, err)
+
+	var raw map[string]json.RawMessage
+	err = json.Unmarshal(data, &raw)
+	require.NoError(t, err)
+	assert.Contains(t, raw, "findings", "JSON should contain 'findings' key when findings are present")
+}
+
+func TestDecisionEntryWithoutFindings_MarshalJSON(t *testing.T) {
+	entry := proxy.DecisionEntry{
+		ActionID:  "act-12345678",
+		Timestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		Direction: "request",
+		Decision:  proxy.ActionAllow,
+		Reason:    "no findings",
+	}
+
+	data, err := json.Marshal(entry)
+	require.NoError(t, err)
+
+	var raw map[string]json.RawMessage
+	err = json.Unmarshal(data, &raw)
+	require.NoError(t, err)
+	assert.NotContains(t, raw, "findings", "JSON should NOT contain 'findings' key when findings are nil")
+}
+
+func TestDecisionEntryOldFormat_UnmarshalJSON(t *testing.T) {
+	oldJSON := `{"action_id":"act-00000001","timestamp":"2026-01-01T00:00:00Z","direction":"request","decision":"allow","reason":"no findings"}`
+
+	var entry proxy.DecisionEntry
+	err := json.Unmarshal([]byte(oldJSON), &entry)
+	require.NoError(t, err)
+
+	assert.Equal(t, "act-00000001", entry.ActionID)
+	assert.Equal(t, proxy.ActionAllow, entry.Decision)
+	assert.Nil(t, entry.Findings, "Findings should be nil for old format entries")
+}
+
+func TestDecisionEntryFindings_RoundTrip(t *testing.T) {
+	original := proxy.DecisionEntry{
+		ActionID:  "act-roundtrip",
+		Timestamp: time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC),
+		Direction: "request",
+		Decision:  proxy.ActionBlock,
+		Reason:    "multiple findings",
+		Findings: []proxy.Finding{
+			{Scanner: "secret", Severity: "critical", Description: "AWS key", Decision: proxy.ActionBlock},
+			{Scanner: "network", Severity: "high", Description: "Malicious host", Decision: proxy.ActionWarn},
+		},
+	}
+
+	data, err := json.Marshal(original)
+	require.NoError(t, err)
+
+	var decoded proxy.DecisionEntry
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	assert.Equal(t, original.ActionID, decoded.ActionID)
+	assert.Equal(t, original.Decision, decoded.Decision)
+	require.Len(t, decoded.Findings, 2)
+	assert.Equal(t, "secret", decoded.Findings[0].Scanner)
+	assert.Equal(t, "critical", decoded.Findings[0].Severity)
+	assert.Equal(t, "network", decoded.Findings[1].Scanner)
 }

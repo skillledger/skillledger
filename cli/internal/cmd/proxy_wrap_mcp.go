@@ -39,7 +39,9 @@ func runProxyWrapMCP(cmd *cobra.Command, args []string) error {
 	// Create a file-backed decision log for cross-process access.
 	dl := proxy.NewDecisionLog(1000)
 
-	wrapper, err := proxy.NewMCPWrapper(command, cmdArgs, skillID, dl, log.Logger)
+	// Pass nil for pinStore, injScanner, policyConfig -- wrap-mcp operates independently
+	// of the proxy server and does not have access to server-owned resources.
+	wrapper, err := proxy.NewMCPWrapper(command, cmdArgs, skillID, dl, log.Logger, nil, nil, nil)
 	if err != nil {
 		return fmt.Errorf("creating MCP wrapper: %w", err)
 	}

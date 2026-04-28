@@ -64,6 +64,9 @@ type ProxyServer struct {
 	lockfileDir    string             // directory containing skill lockfiles
 	verifyPipeline *verify.Pipeline   // v1 verification pipeline for trust verification
 
+	// Phase 15: DSL runtime-rules extra Rego modules.
+	extraModules map[string]string // compiled Rego from DSL runtime-rules
+
 	// Phase 14: YARA and violation logging.
 	yaraRulesDir    string           // path to YARA rules directory
 	violationLogPath string          // path to violations.jsonl
@@ -161,6 +164,14 @@ func WithVerifyPipeline(p *verify.Pipeline) ServerOption {
 func WithYARARulesDir(dir string) ServerOption {
 	return func(s *ProxyServer) {
 		s.yaraRulesDir = dir
+	}
+}
+
+// WithExtraModules sets additional Rego modules (e.g., compiled DSL runtime-rules)
+// that are passed to NewRuntimeEvaluator alongside the preset Rego.
+func WithExtraModules(modules map[string]string) ServerOption {
+	return func(s *ProxyServer) {
+		s.extraModules = modules
 	}
 }
 
@@ -276,7 +287,7 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 	}
 
 	// Initialize RuntimeEvaluator.
-	capEval, evalErr := NewRuntimeEvaluator(s.policyConfig.Preset, manifests, s.policyConfig, profiler, nil)
+	capEval, evalErr := NewRuntimeEvaluator(s.policyConfig.Preset, manifests, s.policyConfig, profiler, s.extraModules)
 	if evalErr != nil {
 		s.logger.Warn().Err(evalErr).Msg("failed to initialize runtime evaluator -- capability enforcement disabled")
 	} else {

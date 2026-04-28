@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 
+	"github.com/skillledger/skillledger/internal/policy/dsl"
 	"github.com/skillledger/skillledger/internal/proxy"
 	"github.com/skillledger/skillledger/internal/report"
 	"github.com/skillledger/skillledger/internal/signer"
@@ -85,6 +86,28 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 		config.Preset = preset
 	}
 
+	// Parse DSL runtime-rules from the explicit policy file (if provided).
+	// dsl.Parse requires a version:1 DSL file; plain PolicyConfig YAML will
+	// fail parsing -- that is expected and silently ignored.
+	var extraModules map[string]string
+	if policyFile != "" {
+		data, _ := os.ReadFile(policyFile) // already read above; re-read is cheap
+		if dslPolicy, dslErr := dsl.Parse(data); dslErr == nil {
+			if dslPolicy.RuntimeRules != nil {
+				rego, compileErr := dsl.CompileRuntime(dslPolicy.RuntimeRules)
+				if compileErr != nil {
+					log.Warn().Err(compileErr).Msg("failed to compile DSL runtime-rules to Rego")
+				} else if rego != "" {
+					extraModules = map[string]string{
+						"skillledger.runtime_policy": rego,
+					}
+					log.Info().Int("modules", len(extraModules)).Msg("compiled runtime-rules to Rego")
+				}
+			}
+		}
+		// If dsl.Parse fails, the file is a plain PolicyConfig -- no action needed.
+	}
+
 	opts := []proxy.ServerOption{
 		proxy.WithPort(port),
 		proxy.WithBaseDir(baseDir),
@@ -116,6 +139,9 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 	}
 	if yaraRulesDir != "" {
 		opts = append(opts, proxy.WithYARARulesDir(yaraRulesDir))
+	}
+	if extraModules != nil {
+		opts = append(opts, proxy.WithExtraModules(extraModules))
 	}
 
 	// Always wire violation log to capture entries with findings.

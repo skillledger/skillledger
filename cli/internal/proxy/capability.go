@@ -12,12 +12,13 @@ import (
 
 // RuntimeAction describes a single action intercepted from a skill at runtime.
 type RuntimeAction struct {
-	SkillID    string `json:"skill_id"`
-	ActionType string `json:"action_type"` // "http_request", "mcp_tool_call", "mcp_resource_access"
+	SkillID     string `json:"skill_id"`
+	ActionType  string `json:"action_type"` // "http_request", "mcp_tool_call", "mcp_resource_access"
 	Destination string `json:"destination,omitempty"` // host:port for HTTP
-	Method     string `json:"method,omitempty"`       // HTTP method or MCP method
-	ToolName   string `json:"tool,omitempty"`          // MCP tool name
-	Resource   string `json:"resource,omitempty"`      // MCP resource URI
+	Method      string `json:"method,omitempty"`      // HTTP method or MCP method
+	ToolName    string `json:"tool,omitempty"`         // MCP tool name
+	Resource    string `json:"resource,omitempty"`     // MCP resource URI
+	TrustTier   string `json:"trust_tier,omitempty"`   // "verified", "partial", "unverified" (Phase 13)
 }
 
 // ActionObserver is notified of runtime actions for learning/profiling purposes.
@@ -134,6 +135,13 @@ func buildRuntimeInput(action RuntimeAction, m *manifest.Manifest) map[string]an
 		secrets = []string{}
 	}
 
+	// Default trust_tier to "verified" when absent for backward compatibility
+	// (pre-Phase 13 callers don't set TrustTier)
+	trustTier := action.TrustTier
+	if trustTier == "" {
+		trustTier = "verified"
+	}
+
 	return map[string]any{
 		"action": map[string]any{
 			"type":        action.ActionType,
@@ -150,6 +158,7 @@ func buildRuntimeInput(action RuntimeAction, m *manifest.Manifest) map[string]an
 				"secrets":    toAnySlice(secrets),
 			},
 		},
+		"trust_tier": trustTier,
 	}
 }
 

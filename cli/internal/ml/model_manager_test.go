@@ -69,6 +69,15 @@ func TestModelManager_Verify_NoFiles(t *testing.T) {
 	baseDir := t.TempDir()
 	mm := NewModelManager(baseDir)
 
+	// Set pinned checksums so Verify actually tries to check files.
+	origChecksums := pinnedChecksums
+	defer func() { pinnedChecksums = origChecksums }()
+	pinnedChecksums = map[string]string{
+		modelFileName:     "abc123",
+		tokenizerFileName: "def456",
+		ortLibFileName():  "789abc",
+	}
+
 	err := mm.Verify()
 	assert.Error(t, err, "Verify should fail when files do not exist")
 }
@@ -84,14 +93,32 @@ func TestModelManager_Verify_Mismatch(t *testing.T) {
 	require.NoError(t, os.WriteFile(mm.TokenizerPath(), []byte("wrong tokenizer"), 0600))
 	require.NoError(t, os.WriteFile(mm.OrtLibPath(), []byte("wrong ort"), 0600))
 
-	// Verify should fail because checksums don't match pinned values
-	// (unless pinnedChecksums is empty, in which case it warns and returns nil)
-	err := mm.Verify()
-	if len(pinnedChecksums) > 0 {
-		assert.Error(t, err, "Verify should fail when checksums don't match")
-		assert.Contains(t, err.Error(), "checksum mismatch")
+	// Set pinned checksums that don't match file contents.
+	origChecksums := pinnedChecksums
+	defer func() { pinnedChecksums = origChecksums }()
+	pinnedChecksums = map[string]string{
+		modelFileName:     "0000000000000000000000000000000000000000000000000000000000000000",
+		tokenizerFileName: "1111111111111111111111111111111111111111111111111111111111111111",
+		ortLibFileName():  "2222222222222222222222222222222222222222222222222222222222222222",
 	}
-	// If pinnedChecksums is empty (placeholder), verify logs warning but succeeds
+
+	err := mm.Verify()
+	assert.Error(t, err, "Verify should fail when checksums don't match")
+	assert.Contains(t, err.Error(), "checksum mismatch")
+}
+
+func TestModelManager_Verify_PlaceholderMode(t *testing.T) {
+	baseDir := t.TempDir()
+	mm := NewModelManager(baseDir)
+
+	// Ensure pinnedChecksums is empty (placeholder mode).
+	origChecksums := pinnedChecksums
+	defer func() { pinnedChecksums = origChecksums }()
+	pinnedChecksums = map[string]string{}
+
+	// With empty checksums, Verify should succeed with a warning (placeholder mode).
+	err := mm.Verify()
+	assert.NoError(t, err, "Verify should pass in placeholder mode (no pinned checksums)")
 }
 
 func TestModelManager_Verify_CorrectChecksums(t *testing.T) {

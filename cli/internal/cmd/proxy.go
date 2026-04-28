@@ -40,5 +40,7 @@ func init() {
 	proxyCmd.AddCommand(proxyInstallMCPCmd)
 	proxyCmd.AddCommand(proxyUninstallMCPCmd)
 	proxyCmd.AddCommand(proxyWrapMCPCmd)
+	proxyCmd.AddCommand(proxyPolicyCmd)
+	proxyCmd.AddCommand(proxyProfileCmd)
 	rootCmd.AddCommand(proxyCmd)
 }

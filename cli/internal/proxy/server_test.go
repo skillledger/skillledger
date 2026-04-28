@@ -114,7 +114,7 @@ func TestProxyServer_PIDFile(t *testing.T) {
 
 func TestHandler_OnRequest_LogsDecision(t *testing.T) {
 	dl := proxy.NewDecisionLog(100)
-	h := proxy.NewHandler(dl, nil, zerolog.Nop())
+	h := proxy.NewHandler(dl, nil, nil, zerolog.Nop())
 
 	req := httptest.NewRequest(http.MethodGet, "https://example.com/api", nil)
 	ctx := &goproxy.ProxyCtx{
@@ -148,7 +148,7 @@ func TestHandler_OnRequest_LogsDecision(t *testing.T) {
 
 func TestHandler_OnResponse_LogsDecision(t *testing.T) {
 	dl := proxy.NewDecisionLog(100)
-	h := proxy.NewHandler(dl, nil, zerolog.Nop())
+	h := proxy.NewHandler(dl, nil, nil, zerolog.Nop())
 
 	req := httptest.NewRequest(http.MethodPost, "https://api.example.com/data", nil)
 	resp := &http.Response{

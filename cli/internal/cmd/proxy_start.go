@@ -33,6 +33,9 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 	preset, _ := cmd.Flags().GetString("preset")
 	manifestDir, _ := cmd.Flags().GetString("manifest-dir")
 	policyFile, _ := cmd.Flags().GetString("policy-file")
+	allowlistPath, _ := cmd.Flags().GetString("injection-allowlist")
+	deepScan, _ := cmd.Flags().GetBool("deep-scan")
+	streamableMCPURL, _ := cmd.Flags().GetString("streamable-mcp-url")
 	baseDir := proxyBaseDir()
 
 	// Check if proxy is already running.
@@ -74,20 +77,37 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 		config.Preset = preset
 	}
 
-	server := proxy.NewProxyServer(
+	opts := []proxy.ServerOption{
 		proxy.WithPort(port),
 		proxy.WithBaseDir(baseDir),
 		proxy.WithDecisionLogSize(logSize),
 		proxy.WithLogger(log.Logger),
 		proxy.WithPolicyConfig(config),
-		proxy.WithManifestDir(manifestDir),
-	)
+	}
+
+	if manifestDir != "" {
+		opts = append(opts, proxy.WithManifestDir(manifestDir))
+	}
+	if allowlistPath != "" {
+		opts = append(opts, proxy.WithInjectionAllowlist(allowlistPath))
+	}
+	if deepScan {
+		opts = append(opts, proxy.WithDeepScan(true))
+	}
+	if streamableMCPURL != "" {
+		opts = append(opts, proxy.WithStreamableMCPURL(streamableMCPURL))
+	}
+
+	server := proxy.NewProxyServer(opts...)
 
 	log.Info().Int("port", port).Msgf("Starting proxy on 127.0.0.1:%d", port)
 	log.Info().Str("ca_cert", proxy.CACertPath(baseDir)).Msg("CA certificate location")
 	log.Info().Str("preset", config.Preset).Msg("runtime policy preset")
 	if manifestDir != "" {
 		log.Info().Str("manifest_dir", manifestDir).Msg("loading skill manifests from directory")
+	}
+	if streamableMCPURL != "" {
+		log.Info().Str("streamable_mcp_url", streamableMCPURL).Msg("Streamable HTTP MCP proxy -> /mcp")
 	}
 	log.Info().Msg("Run `skillledger proxy trust` to install CA into system trust store")
 
@@ -112,4 +132,9 @@ func init() {
 	proxyStartCmd.Flags().String("preset", "moderate", "runtime policy preset (strict/moderate/permissive)")
 	proxyStartCmd.Flags().String("manifest-dir", "", "directory containing skill manifests (skillledger.yaml files)")
 	proxyStartCmd.Flags().String("policy-file", "", "path to policy DSL YAML file with runtime-rules")
+
+	// Phase 12: New flags for MCP protection.
+	proxyStartCmd.Flags().String("injection-allowlist", "", "path to injection allowlist YAML for false positive suppression")
+	proxyStartCmd.Flags().Bool("deep-scan", false, "always run ML classifier (not just on inconclusive heuristic)")
+	proxyStartCmd.Flags().String("streamable-mcp-url", "", "target Streamable HTTP MCP server URL (e.g., ws://localhost:3000/mcp)")
 }

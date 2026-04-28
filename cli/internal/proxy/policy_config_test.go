@@ -49,12 +49,14 @@ func TestDefaultPolicyConfig(t *testing.T) {
 	expectedKeys := []string{
 		"secret_exfil", "ioc_match", "undeclared_destination",
 		"undeclared_tool", "capability_violation", "dns_exfil", "slow_drip",
+		// Phase 12: MCP protection violation types.
+		"pin_change_midsession", "pin_change_between", "prompt_injection",
 	}
 	for _, key := range expectedKeys {
 		_, ok := pc.ResponseActions[key]
 		assert.True(t, ok, "default config should have key: %s", key)
 	}
-	assert.Len(t, pc.ResponseActions, 7)
+	assert.Len(t, pc.ResponseActions, 10)
 }
 
 func TestMergePolicyConfigs(t *testing.T) {
@@ -86,4 +88,14 @@ func TestActionFor_Unknown(t *testing.T) {
 	pc := proxy.DefaultPolicyConfig()
 	// Fail-closed: unknown violation type returns ActionBlock
 	assert.Equal(t, proxy.ActionBlock, pc.ActionFor("nonexistent_violation"))
+}
+
+func TestActionFor_Phase12ViolationTypes(t *testing.T) {
+	pc := proxy.DefaultPolicyConfig()
+	// Mid-session rug-pull: always block (CONTEXT.md: no warn option).
+	assert.Equal(t, proxy.ActionBlock, pc.ActionFor("pin_change_midsession"))
+	// Between-session change: warn by default.
+	assert.Equal(t, proxy.ActionWarn, pc.ActionFor("pin_change_between"))
+	// Prompt injection: warn-only default (CONTEXT.md).
+	assert.Equal(t, proxy.ActionWarn, pc.ActionFor("prompt_injection"))
 }

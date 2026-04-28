@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -45,6 +46,17 @@ type ProxyServer struct {
 	manifestDir    string
 	capabilityEval *RuntimeEvaluator
 	profiler       *Profiler
+
+	// Phase 12: MCP protection components.
+	pinStore        *ToolPinStore      // tool definition pinning for rug-pull detection
+	injScanner      *InjectionScanner  // prompt injection scanner (also in HTTP pipeline)
+	mlCloser        io.Closer          // ML classifier resource handle (nil if no ML)
+	streamableURL   string             // target URL for Streamable HTTP MCP proxy
+	streamableProxy *StreamableProxy   // Streamable HTTP MCP proxy instance
+
+	// Phase 12: options applied in NewProxyServer.
+	injAllowlistPath string // path to injection allowlist YAML
+	deepScan         bool   // always run ML classifier
 }
 
 // WithPort sets the proxy listen port.
@@ -96,6 +108,28 @@ func WithManifestDir(dir string) ServerOption {
 	}
 }
 
+// WithInjectionAllowlist sets the path to the injection allowlist YAML file.
+func WithInjectionAllowlist(path string) ServerOption {
+	return func(s *ProxyServer) {
+		s.injAllowlistPath = path
+	}
+}
+
+// WithDeepScan enables always-on ML classification (not just on inconclusive heuristic).
+func WithDeepScan(enabled bool) ServerOption {
+	return func(s *ProxyServer) {
+		s.deepScan = enabled
+	}
+}
+
+// WithStreamableMCPURL sets the target Streamable HTTP MCP server URL.
+// When set, a StreamableProxy is created and registered on the /mcp endpoint.
+func WithStreamableMCPURL(url string) ServerOption {
+	return func(s *ProxyServer) {
+		s.streamableURL = url
+	}
+}
+
 // NewProxyServer creates a new proxy server with the given options.
 func NewProxyServer(opts ...ServerOption) *ProxyServer {
 	home, _ := os.UserHomeDir()
@@ -136,7 +170,38 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 	entropyTracker := NewEntropyTracker()
 	scanners = append(scanners, entropyTracker)
 
+	// Phase 12: Injection scanner for HTTP traffic.
+	var allowlist *InjectionAllowlist
+	if s.injAllowlistPath != "" {
+		var loadErr error
+		allowlist, loadErr = LoadInjectionAllowlist(s.injAllowlistPath)
+		if loadErr != nil {
+			s.logger.Warn().Err(loadErr).Str("path", s.injAllowlistPath).Msg("failed to load injection allowlist")
+		}
+	} else {
+		// Try default path.
+		allowlist, _ = LoadInjectionAllowlist(filepath.Join(s.baseDir, "injection-allowlist.yaml"))
+	}
+	injScanner := NewInjectionScanner(allowlist)
+	if s.deepScan {
+		injScanner.SetDeepScan(true)
+	}
+	scanners = append(scanners, injScanner)
+	s.injScanner = injScanner
+
 	pipeline := NewScanPipeline(scanners...)
+
+	// Phase 12: Initialize ToolPinStore.
+	pinStore := NewToolPinStore(filepath.Join(s.baseDir, "pins.json"))
+	if loadErr := pinStore.Load(); loadErr != nil {
+		s.logger.Warn().Err(loadErr).Msg("failed to load pin store -- starting fresh")
+	}
+	s.pinStore = pinStore
+
+	// Phase 12: Optionally wire ML classifier (build-tag-safe).
+	if closer := tryLoadMLClassifier(s.baseDir, injScanner, s.logger); closer != nil {
+		s.mlCloser = closer
+	}
 
 	// Initialize auto-profiler.
 	profiler := NewProfiler()
@@ -171,7 +236,22 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 			Msg("runtime capability evaluator initialized")
 	}
 
+	// Phase 12: Create StreamableProxy if URL is configured.
+	if s.streamableURL != "" {
+		sp := NewStreamableProxy(s.streamableURL, nil, s.logger, s.pinStore, s.injScanner, s.policyConfig)
+		s.streamableProxy = sp
+		s.logger.Info().
+			Str("streamable_mcp_url", s.streamableURL).
+			Msg("Streamable HTTP MCP proxy created")
+	}
+
 	s.decisionLog = NewDecisionLog(s.logSize)
+
+	// Wire decision log into StreamableProxy now that it exists.
+	if s.streamableProxy != nil {
+		s.streamableProxy.decisionLog = s.decisionLog
+	}
+
 	s.handler = NewHandler(s.decisionLog, pipeline, s.capabilityEval, s.logger)
 	s.proxy = goproxy.NewProxyHttpServer()
 
@@ -232,6 +312,21 @@ func (s *ProxyServer) DecisionLog() *DecisionLog {
 	return s.decisionLog
 }
 
+// PinStore returns the tool pin store.
+func (s *ProxyServer) PinStore() *ToolPinStore {
+	return s.pinStore
+}
+
+// InjectionScanner returns the injection scanner.
+func (s *ProxyServer) InjectionScanner() *InjectionScanner {
+	return s.injScanner
+}
+
+// StreamableProxy returns the Streamable HTTP MCP proxy (nil if not configured).
+func (s *ProxyServer) StreamableProxy() *StreamableProxy {
+	return s.streamableProxy
+}
+
 // Start initializes the CA, configures MITM, and starts listening.
 // It blocks until the context is cancelled or Stop is called.
 func (s *ProxyServer) Start(ctx context.Context) error {
@@ -260,6 +355,22 @@ func (s *ProxyServer) Start(ctx context.Context) error {
 	// Register request/response handlers.
 	s.proxy.OnRequest().DoFunc(s.handler.OnRequest)
 	s.proxy.OnResponse().DoFunc(s.handler.OnResponse)
+
+	// Phase 12: Register StreamableProxy on /mcp endpoint for non-proxy requests.
+	if s.streamableProxy != nil {
+		s.proxy.NonproxyHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/mcp" {
+				s.streamableProxy.ServeHTTP(w, r)
+				return
+			}
+			// Default: serve a simple status for direct (non-proxy) requests.
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("SkillLedger proxy running"))
+		})
+		s.logger.Info().
+			Str("streamable_mcp_url", s.streamableURL).
+			Msg("Streamable HTTP MCP proxy registered on /mcp")
+	}
 
 	// Bind to localhost only (T-09-06).
 	addr := fmt.Sprintf("127.0.0.1:%d", s.port)
@@ -348,6 +459,18 @@ func (s *ProxyServer) RuntimeEvaluator() *RuntimeEvaluator { return s.capability
 func (s *ProxyServer) PolicyConfig() *PolicyConfig { return s.policyConfig }
 
 func (s *ProxyServer) cleanup() {
+	// Phase 12: Close ML classifier resources.
+	if s.mlCloser != nil {
+		s.mlCloser.Close()
+	}
+
+	// Phase 12: Save pin store on shutdown.
+	if s.pinStore != nil {
+		if err := s.pinStore.Save(); err != nil {
+			s.logger.Warn().Err(err).Msg("failed to save pin store on shutdown")
+		}
+	}
+
 	// Export profiles on shutdown (T-11-13: 0600 permissions).
 	if s.profiler != nil {
 		profiles := s.profiler.ExportAll()

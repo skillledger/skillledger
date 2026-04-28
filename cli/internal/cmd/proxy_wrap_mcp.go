@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -39,9 +41,40 @@ func runProxyWrapMCP(cmd *cobra.Command, args []string) error {
 	// Create a file-backed decision log for cross-process access.
 	dl := proxy.NewDecisionLog(1000)
 
-	// Pass nil for pinStore, injScanner, policyConfig -- wrap-mcp operates independently
-	// of the proxy server and does not have access to server-owned resources.
-	wrapper, err := proxy.NewMCPWrapper(command, cmdArgs, skillID, dl, log.Logger, nil, nil, nil)
+	// Persist decisions to disk so proxy logs can read MCP stdio events after process exit.
+	baseDir := proxyBaseDir()
+	decLogPath := filepath.Join(baseDir, "proxy", "decisions.jsonl")
+	if err := os.MkdirAll(filepath.Dir(decLogPath), 0o755); err != nil {
+		log.Warn().Err(err).Msg("failed to create proxy directory for decisions log")
+	}
+	if f, err := os.OpenFile(decLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err != nil {
+		log.Warn().Err(err).Msg("failed to open decisions.jsonl for writing -- decisions will be memory-only")
+	} else {
+		dl.SetFileWriter(f)
+		defer f.Close()
+	}
+
+	// Construct ToolPinStore for rug-pull detection.
+	pinStorePath := filepath.Join(baseDir, "proxy", "pin-store.json")
+	pinStore := proxy.NewToolPinStore(pinStorePath)
+
+	// Construct InjectionScanner for prompt injection detection.
+	injScanner := proxy.NewInjectionScanner(nil)
+
+	// Load layered PolicyConfig (same approach as proxy start).
+	config := proxy.DefaultPolicyConfig()
+	for _, path := range []string{
+		filepath.Join(baseDir, "proxy", "policy.yaml"),
+		filepath.Join(".", ".skillledger", "policy.yaml"),
+	} {
+		if data, readErr := os.ReadFile(path); readErr == nil {
+			if fc, parseErr := proxy.LoadPolicyConfig(data); parseErr == nil {
+				config = proxy.MergePolicyConfigs(config, fc)
+			}
+		}
+	}
+
+	wrapper, err := proxy.NewMCPWrapper(command, cmdArgs, skillID, dl, log.Logger, pinStore, injScanner, config)
 	if err != nil {
 		return fmt.Errorf("creating MCP wrapper: %w", err)
 	}

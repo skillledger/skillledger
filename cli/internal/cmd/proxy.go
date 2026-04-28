@@ -42,5 +42,7 @@ func init() {
 	proxyCmd.AddCommand(proxyWrapMCPCmd)
 	proxyCmd.AddCommand(proxyPolicyCmd)
 	proxyCmd.AddCommand(proxyProfileCmd)
+	proxyCmd.AddCommand(proxyLogsCmd)
+	proxyCmd.AddCommand(proxyReportCmd)
 	rootCmd.AddCommand(proxyCmd)
 }

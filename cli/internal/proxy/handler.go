@@ -12,12 +12,13 @@ import (
 // Handler implements the request/response handler pipeline for the MITM proxy.
 // It logs every intercepted request and response as a DecisionEntry.
 type Handler struct {
-	decisionLog    *DecisionLog
-	pipeline       *ScanPipeline
-	capabilityEval *RuntimeEvaluator
-	trustVerifier  *TrustVerifier
-	policyConfig   *PolicyConfig
-	logger         zerolog.Logger
+	decisionLog     *DecisionLog
+	pipeline        *ScanPipeline
+	capabilityEval  *RuntimeEvaluator
+	trustVerifier   *TrustVerifier
+	policyConfig    *PolicyConfig
+	violationWriter *ViolationWriter
+	logger          zerolog.Logger
 }
 
 // NewHandler creates a new Handler backed by the given decision log, scanner pipeline,
@@ -32,6 +33,12 @@ func NewHandler(dl *DecisionLog, pipeline *ScanPipeline, capEval *RuntimeEvaluat
 		policyConfig:   pc,
 		logger:         logger,
 	}
+}
+
+// SetViolationWriter attaches a ViolationWriter to the handler.
+// Findings from decision entries are written to the violation log after recording.
+func (h *Handler) SetViolationWriter(vw *ViolationWriter) {
+	h.violationWriter = vw
 }
 
 // OnRequest handles an intercepted HTTP request. It injects the protocol header
@@ -113,6 +120,13 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 	}
 	h.decisionLog.Record(entry)
 
+	// Phase 14: Write findings to violation log if present.
+	if h.violationWriter != nil {
+		if err := h.violationWriter.WriteFindings(entry); err != nil {
+			h.logger.Error().Err(err).Msg("failed to write violation")
+		}
+	}
+
 	// Store action ID for response correlation.
 	ctx.UserData = entry.ActionID
 
@@ -162,6 +176,13 @@ func (h *Handler) OnResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *http.R
 	}
 
 	h.decisionLog.Record(entry)
+
+	// Phase 14: Write findings to violation log if present.
+	if h.violationWriter != nil {
+		if err := h.violationWriter.WriteFindings(entry); err != nil {
+			h.logger.Error().Err(err).Msg("failed to write violation")
+		}
+	}
 
 	h.logger.Debug().
 		Str("action_id", entry.ActionID).

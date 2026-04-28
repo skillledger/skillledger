@@ -63,6 +63,11 @@ type ProxyServer struct {
 	trustVerifier  *TrustVerifier     // session-scoped trust tier verifier (nil if no lockfile-dir)
 	lockfileDir    string             // directory containing skill lockfiles
 	verifyPipeline *verify.Pipeline   // v1 verification pipeline for trust verification
+
+	// Phase 14: YARA and violation logging.
+	yaraRulesDir    string           // path to YARA rules directory
+	violationLogPath string          // path to violations.jsonl
+	violationWriter *ViolationWriter // append-only violation JSONL writer
 }
 
 // WithPort sets the proxy listen port.
@@ -151,6 +156,22 @@ func WithVerifyPipeline(p *verify.Pipeline) ServerOption {
 	}
 }
 
+// WithYARARulesDir sets the path to YARA rules directory for runtime scanning.
+// If set, a YARAScanner is created and added to the scan pipeline.
+func WithYARARulesDir(dir string) ServerOption {
+	return func(s *ProxyServer) {
+		s.yaraRulesDir = dir
+	}
+}
+
+// WithViolationLog sets the path to the violations JSONL file.
+// A ViolationWriter is created during Start() using the server's afero.Fs.
+func WithViolationLog(path string) ServerOption {
+	return func(s *ProxyServer) {
+		s.violationLogPath = path
+	}
+}
+
 // NewProxyServer creates a new proxy server with the given options.
 func NewProxyServer(opts ...ServerOption) *ProxyServer {
 	home, _ := os.UserHomeDir()
@@ -209,6 +230,15 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 	}
 	scanners = append(scanners, injScanner)
 	s.injScanner = injScanner
+
+	// Phase 14: YARA scanner from user-supplied rules directory.
+	if s.yaraRulesDir != "" {
+		yaraScanner := NewYARAScanner(s.yaraRulesDir)
+		if yaraScanner != nil {
+			scanners = append(scanners, yaraScanner)
+			s.logger.Info().Str("dir", s.yaraRulesDir).Msg("YARA scanner loaded into pipeline")
+		}
+	}
 
 	pipeline := NewScanPipeline(scanners...)
 
@@ -432,6 +462,17 @@ func (s *ProxyServer) Start(ctx context.Context) error {
 		defer decisionFile.Close()
 	}
 
+	// Phase 14: Create ViolationWriter for findings-only JSONL.
+	if s.violationLogPath != "" {
+		vw, vwErr := NewViolationWriter(s.fs, s.violationLogPath)
+		if vwErr != nil {
+			s.logger.Warn().Err(vwErr).Msg("failed to open violations.jsonl -- violation logging disabled")
+		} else {
+			s.violationWriter = vw
+			s.handler.SetViolationWriter(vw)
+		}
+	}
+
 	// Write PID and port files (D-08).
 	if err := writePIDFile(s.fs, s.baseDir); err != nil {
 		s.logger.Warn().Err(err).Msg("failed to write PID file")
@@ -499,6 +540,13 @@ func (s *ProxyServer) PolicyConfig() *PolicyConfig { return s.policyConfig }
 func (s *ProxyServer) TrustVerifier() *TrustVerifier { return s.trustVerifier }
 
 func (s *ProxyServer) cleanup() {
+	// Phase 14: Close ViolationWriter.
+	if s.violationWriter != nil {
+		if err := s.violationWriter.Close(); err != nil {
+			s.logger.Warn().Err(err).Msg("failed to close violation writer")
+		}
+	}
+
 	// Phase 13: Close TrustVerifier to cancel in-flight verification goroutines.
 	if s.trustVerifier != nil {
 		s.trustVerifier.Close()

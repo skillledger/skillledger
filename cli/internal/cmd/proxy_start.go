@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/skillledger/skillledger/internal/proxy"
+	"github.com/skillledger/skillledger/internal/report"
 	"github.com/skillledger/skillledger/internal/signer"
 	"github.com/skillledger/skillledger/internal/tlog"
 	"github.com/skillledger/skillledger/internal/verify"
@@ -41,6 +42,8 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 	streamableMCPURL, _ := cmd.Flags().GetString("streamable-mcp-url")
 	lockfileDir, _ := cmd.Flags().GetString("lockfile-dir")
 	tlogURL, _ := cmd.Flags().GetString("tlog-url")
+	yaraRulesDir, _ := cmd.Flags().GetString("yara-rules")
+	sarifOnShutdown, _ := cmd.Flags().GetString("sarif-on-shutdown")
 	baseDir := proxyBaseDir()
 
 	// Check if proxy is already running.
@@ -111,6 +114,13 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 		pipeline := verify.NewPipeline(sigVerifier, tlogClient, nil)
 		opts = append(opts, proxy.WithVerifyPipeline(pipeline))
 	}
+	if yaraRulesDir != "" {
+		opts = append(opts, proxy.WithYARARulesDir(yaraRulesDir))
+	}
+
+	// Always wire violation log to capture entries with findings.
+	violationLogPath := filepath.Join(baseDir, "proxy", "violations.jsonl")
+	opts = append(opts, proxy.WithViolationLog(violationLogPath))
 
 	server := proxy.NewProxyServer(opts...)
 
@@ -126,13 +136,39 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 	if lockfileDir != "" {
 		log.Info().Str("lockfile_dir", lockfileDir).Str("tlog_url", tlogURL).Msg("provenance verification enabled")
 	}
+	if yaraRulesDir != "" {
+		log.Info().Str("yara_rules", yaraRulesDir).Msg("YARA rules directory configured for runtime scanning")
+	}
 	log.Info().Msg("Run `skillledger proxy trust` to install CA into system trust store")
 
 	// Handle SIGTERM/SIGINT for graceful shutdown.
 	ctx, stop := signal.NotifyContext(cmd.Context(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	return server.Start(ctx)
+	err := server.Start(ctx)
+
+	// Generate SARIF report on shutdown if requested.
+	if sarifOnShutdown != "" {
+		decLogPath := filepath.Join(baseDir, "proxy", "decisions.jsonl")
+		entries, readErr := readDecisionEntries(decLogPath)
+		if readErr != nil {
+			log.Warn().Err(readErr).Msg("failed to read decisions for SARIF on shutdown")
+		} else {
+			f, createErr := os.Create(sarifOnShutdown)
+			if createErr != nil {
+				log.Warn().Err(createErr).Str("path", sarifOnShutdown).Msg("failed to create SARIF output file")
+			} else {
+				if sarifErr := report.GenerateRuntimeSARIF(f, entries); sarifErr != nil {
+					log.Warn().Err(sarifErr).Msg("failed to generate SARIF on shutdown")
+				} else {
+					log.Info().Str("path", sarifOnShutdown).Msg("SARIF report written on shutdown")
+				}
+				f.Close()
+			}
+		}
+	}
+
+	return err
 }
 
 func init() {
@@ -158,4 +194,8 @@ func init() {
 	// Phase 13: Provenance-aware policy flags.
 	proxyStartCmd.Flags().String("lockfile-dir", "", "directory containing skill lockfiles for provenance verification")
 	proxyStartCmd.Flags().String("tlog-url", "http://localhost:8080", "transparency log service URL for provenance verification")
+
+	// Phase 14: YARA and reporting flags.
+	proxyStartCmd.Flags().String("yara-rules", "", "path to YARA rules directory for runtime scanning")
+	proxyStartCmd.Flags().String("sarif-on-shutdown", "", "path to write SARIF report on proxy shutdown")
 }

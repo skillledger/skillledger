@@ -110,7 +110,7 @@ func TestRuleIDForFinding(t *testing.T) {
 		{"capability", "SL-RT-capability-001"},
 		{"pinchange", "SL-RT-pinchange-001"},
 		{"yara", "SL-RT-yara-001"},
-		{"dns_exfil", "SL-RT-dns-001"},
+		{"dns-exfil", "SL-RT-dns-001"},
 		{"entropy", "SL-RT-entropy-001"},
 		{"unknown_scanner", "SL-RT-unknown-001"},
 	}
@@ -363,7 +363,7 @@ func TestGenerateRuntimeSARIF_TrustTierInFingerprints(t *testing.T) {
 
 func TestGenerateRuntimeSARIF_AllRulesHaveRequiredFields(t *testing.T) {
 	// Create entries that exercise all scanners
-	scanners := []string{"secret", "network", "injection", "capability", "pinchange", "yara", "dns_exfil", "entropy"}
+	scanners := []string{"secret", "network", "injection", "capability", "pinchange", "yara", "dns-exfil", "entropy"}
 	var entries []proxy.DecisionEntry
 	for _, s := range scanners {
 		entries = append(entries, proxy.DecisionEntry{

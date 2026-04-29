@@ -39,10 +39,13 @@ type ModelStatus struct {
 
 // pinnedChecksums contains SHA-256 checksums for each downloaded file.
 // Update these when upgrading to a new model version.
-// When empty (placeholder mode), verification logs a warning and skips.
+// TODO(CR-03): These are placeholder hashes. Replace with actual SHA-256 checksums
+// computed from a verified download of protectai/deberta-v3-base-prompt-injection-v2.
+// Until real hashes are populated, VerifyChecksum() will fail-closed (reject unverified models).
 var pinnedChecksums = map[string]string{
-	// Placeholder: will be populated with actual checksums after first verified download.
-	// Users can also verify by computing checksums of downloaded files manually.
+	// Placeholder checksums — VerifyChecksum fails-closed when hash is "PLACEHOLDER".
+	modelFileName:     "PLACEHOLDER",
+	tokenizerFileName: "PLACEHOLDER",
 }
 
 // ortPlatform describes a platform-specific ONNX Runtime shared library.
@@ -305,14 +308,9 @@ func (m *ModelManager) fileVerified(filename, path string) bool {
 }
 
 // Verify checks SHA-256 of each downloaded file against pinned checksums.
-// Returns the first mismatch as an error. If pinnedChecksums is empty
-// (placeholder mode), logs a warning and returns nil.
+// Returns the first mismatch as an error. Fail-closed: if no pinned checksum
+// exists for a required file, verification fails (CR-03: prevent unverified models).
 func (m *ModelManager) Verify() error {
-	if len(pinnedChecksums) == 0 {
-		log.Warn().Msg("no pinned checksums configured; skipping verification (placeholder mode)")
-		return nil
-	}
-
 	files := map[string]string{
 		modelFileName:     m.ModelPath(),
 		tokenizerFileName: m.TokenizerPath(),
@@ -321,8 +319,9 @@ func (m *ModelManager) Verify() error {
 
 	for name, path := range files {
 		expected, ok := pinnedChecksums[name]
-		if !ok || expected == "" {
-			continue
+		if !ok || expected == "" || expected == "PLACEHOLDER" {
+			// Fail-closed: no valid pinned hash means verification fails (CR-03).
+			return fmt.Errorf("no valid pinned checksum for %s (fail-closed); populate pinnedChecksums with real SHA-256 hashes", name)
 		}
 
 		actual, err := fileSHA256(path)

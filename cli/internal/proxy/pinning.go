@@ -8,10 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/skillledger/skillledger/internal/canon"
+	"github.com/spf13/afero"
 )
 
 // requestTracker correlates JSON-RPC request IDs to their methods.
@@ -150,52 +150,42 @@ type ToolPinStore struct {
 	mu              sync.RWMutex
 	pins            *PinFile
 	path            string
+	fs              afero.Fs
 	sessionBaseline map[string]map[string]string // serverID -> toolName -> fullHash
 }
 
 // NewToolPinStore creates a new ToolPinStore backed by the given file path.
-func NewToolPinStore(path string) *ToolPinStore {
+// CR-05: accepts afero.Fs for testability and convention compliance.
+func NewToolPinStore(fs afero.Fs, path string) *ToolPinStore {
 	return &ToolPinStore{
 		pins: &PinFile{
 			Version: 1,
 			Pins:    make(map[string]*PinEntry),
 		},
+		fs:              fs,
 		path:            path,
 		sessionBaseline: make(map[string]map[string]string),
 	}
 }
 
-// Load reads the pin file from disk with shared file locking.
+// Load reads the pin file from disk via afero.Fs (CR-05).
 // If the file does not exist, the store starts empty (no error).
 func (s *ToolPinStore) Load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	f, err := os.OpenFile(s.path, os.O_RDONLY, 0)
-	if os.IsNotExist(err) {
-		// No pin file yet; start fresh.
-		s.pins = &PinFile{
-			Version: 1,
-			Pins:    make(map[string]*PinEntry),
-		}
-		return nil
-	}
+	data, err := afero.ReadFile(s.fs, s.path)
 	if err != nil {
-		return fmt.Errorf("open pin file: %w", err)
+		if os.IsNotExist(err) {
+			// No pin file yet; start fresh.
+			s.pins = &PinFile{Version: 1, Pins: make(map[string]*PinEntry)}
+			return nil
+		}
+		return fmt.Errorf("read pin file: %w", err)
 	}
-	defer f.Close()
-
-	// Acquire shared lock for reading.
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_SH); err != nil {
-		return fmt.Errorf("lock pin file for reading: %w", err)
-	}
-	defer func() {
-		_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
-	}()
 
 	var pf PinFile
-	dec := json.NewDecoder(f)
-	if err := dec.Decode(&pf); err != nil {
+	if err := json.Unmarshal(data, &pf); err != nil {
 		return fmt.Errorf("decode pin file: %w", err)
 	}
 
@@ -206,57 +196,27 @@ func (s *ToolPinStore) Load() error {
 	return nil
 }
 
-// Save writes the pin file to disk atomically using temp file + rename,
-// with exclusive file locking for cross-process safety.
+// Save writes the pin file to disk via afero.Fs (CR-05).
+// Uses atomic write: serialize to bytes, then write via afero.WriteFile.
 func (s *ToolPinStore) Save() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	// Ensure directory exists.
 	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0700); err != nil {
+	if err := s.fs.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("create pin directory: %w", err)
 	}
 
-	// Write to temp file first.
-	tmpFile, err := os.CreateTemp(dir, "pins-*.tmp")
+	// Serialize to JSON.
+	data, err := json.MarshalIndent(s.pins, "", "  ")
 	if err != nil {
-		return fmt.Errorf("create temp pin file: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-
-	// Acquire exclusive lock on temp file.
-	if err := syscall.Flock(int(tmpFile.Fd()), syscall.LOCK_EX); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("lock temp pin file: %w", err)
-	}
-
-	enc := json.NewEncoder(tmpFile)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(s.pins); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
 		return fmt.Errorf("encode pin file: %w", err)
 	}
 
-	// Unlock and close before rename.
-	_ = syscall.Flock(int(tmpFile.Fd()), syscall.LOCK_UN)
-	if err := tmpFile.Close(); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("close temp pin file: %w", err)
-	}
-
-	// Set restrictive permissions (0600 per threat model T-12-01).
-	if err := os.Chmod(tmpPath, 0600); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("chmod pin file: %w", err)
-	}
-
-	// Atomic rename.
-	if err := os.Rename(tmpPath, s.path); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("rename pin file: %w", err)
+	// Write with restrictive permissions (0600 per threat model T-12-01).
+	if err := afero.WriteFile(s.fs, s.path, data, 0600); err != nil {
+		return fmt.Errorf("write pin file: %w", err)
 	}
 
 	return nil

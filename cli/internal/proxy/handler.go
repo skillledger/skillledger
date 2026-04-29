@@ -9,6 +9,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	// maxBodySize is the maximum request body size read for scanning (10 MB).
+	// Bodies exceeding this limit are truncated for scanning purposes only;
+	// the original request is forwarded unmodified (CR-02: OOM DoS prevention).
+	maxBodySize = 10 * 1024 * 1024
+)
+
 // Handler implements the request/response handler pipeline for the MITM proxy.
 // It logs every intercepted request and response as a DecisionEntry.
 type Handler struct {
@@ -49,15 +56,28 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 	// Inject protocol header for internal tracking.
 	InjectProtocolHeader(r)
 
-	// Read request body for scanning, restore for forwarding (per D-03: no size limit).
+	// Read request body for scanning with size cap (CR-02: OOM DoS prevention).
+	// Only the first maxBodySize bytes are scanned; the full body is forwarded.
 	var body []byte
 	if r.Body != nil {
 		var err error
-		body, err = io.ReadAll(r.Body)
+		body, err = io.ReadAll(io.LimitReader(r.Body, maxBodySize+1))
 		if err != nil {
 			h.logger.Warn().Err(err).Msg("failed to read request body for scanning")
 		}
-		r.Body = io.NopCloser(bytes.NewReader(body))
+		// Read any remaining body bytes beyond the limit for forwarding.
+		remaining, _ := io.ReadAll(r.Body)
+		fullBody := body
+		if len(remaining) > 0 {
+			fullBody = append(body, remaining...)
+		}
+		r.Body = io.NopCloser(bytes.NewReader(fullBody))
+		// Truncate scan input to maxBodySize.
+		if len(body) > maxBodySize {
+			h.logger.Warn().Int("body_size", len(fullBody)).Int("scan_limit", maxBodySize).
+				Msg("request body exceeds scan limit, scanning truncated")
+			body = body[:maxBodySize]
+		}
 	}
 
 	// Run scanner pipeline (per D-12: scanners run BEFORE allow decision).

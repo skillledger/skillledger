@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 
 	"github.com/skillledger/skillledger/internal/proxy"
@@ -56,7 +57,7 @@ func runProxyWrapMCP(cmd *cobra.Command, args []string) error {
 
 	// Construct ToolPinStore for rug-pull detection.
 	pinStorePath := filepath.Join(baseDir, "proxy", "pin-store.json")
-	pinStore := proxy.NewToolPinStore(pinStorePath)
+	pinStore := proxy.NewToolPinStore(afero.NewOsFs(), pinStorePath)
 
 	// Construct InjectionScanner for prompt injection detection.
 	injScanner := proxy.NewInjectionScanner(nil)

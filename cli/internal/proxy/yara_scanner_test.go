@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/skillledger/skillledger/internal/proxy"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +22,7 @@ func testdataDir(t *testing.T) string {
 
 func TestYARAScanner_ScanMatch(t *testing.T) {
 	dir := testdataDir(t)
-	scanner := proxy.NewYARAScanner(dir)
+	scanner := proxy.NewYARAScanner(afero.NewOsFs(),dir)
 	require.NotNil(t, scanner, "scanner should be non-nil when valid rules dir exists")
 
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/api", nil)
@@ -36,7 +37,7 @@ func TestYARAScanner_ScanMatch(t *testing.T) {
 
 func TestYARAScanner_ScanNoMatch(t *testing.T) {
 	dir := testdataDir(t)
-	scanner := proxy.NewYARAScanner(dir)
+	scanner := proxy.NewYARAScanner(afero.NewOsFs(),dir)
 	require.NotNil(t, scanner)
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
@@ -47,7 +48,7 @@ func TestYARAScanner_ScanNoMatch(t *testing.T) {
 
 func TestYARAScanner_SeverityFromMeta(t *testing.T) {
 	dir := testdataDir(t)
-	scanner := proxy.NewYARAScanner(dir)
+	scanner := proxy.NewYARAScanner(afero.NewOsFs(),dir)
 	require.NotNil(t, scanner)
 
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/", nil)
@@ -59,7 +60,7 @@ func TestYARAScanner_SeverityFromMeta(t *testing.T) {
 
 func TestYARAScanner_SeverityDefaultsMedium(t *testing.T) {
 	dir := testdataDir(t)
-	scanner := proxy.NewYARAScanner(dir)
+	scanner := proxy.NewYARAScanner(afero.NewOsFs(),dir)
 	require.NotNil(t, scanner)
 
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/", nil)
@@ -71,7 +72,7 @@ func TestYARAScanner_SeverityDefaultsMedium(t *testing.T) {
 
 func TestYARAScanner_FindingDescription(t *testing.T) {
 	dir := testdataDir(t)
-	scanner := proxy.NewYARAScanner(dir)
+	scanner := proxy.NewYARAScanner(afero.NewOsFs(),dir)
 	require.NotNil(t, scanner)
 
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/", nil)
@@ -82,11 +83,11 @@ func TestYARAScanner_FindingDescription(t *testing.T) {
 }
 
 func TestNewYARAScanner_EmptyDir(t *testing.T) {
-	scanner := proxy.NewYARAScanner("")
+	scanner := proxy.NewYARAScanner(afero.NewOsFs(),"")
 	assert.Nil(t, scanner, "empty dir should return nil scanner")
 }
 
 func TestNewYARAScanner_NonexistentDir(t *testing.T) {
-	scanner := proxy.NewYARAScanner("/nonexistent/path/to/rules")
+	scanner := proxy.NewYARAScanner(afero.NewOsFs(),"/nonexistent/path/to/rules")
 	assert.Nil(t, scanner, "nonexistent dir should return nil scanner")
 }

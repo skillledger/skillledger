@@ -97,7 +97,11 @@ func (re *RuntimeEvaluator) Evaluate(ctx context.Context, action RuntimeAction, 
 	// Set trust tier on action for OPA input.
 	action.TrustTier = trustTier
 
+	// Hold read lock only for the map lookup (CR-01: data race fix).
+	re.mu.RLock()
 	m, ok := re.manifests[action.SkillID]
+	re.mu.RUnlock()
+
 	if !ok {
 		// Learning mode: no manifest for this skill, observe and allow
 		if re.observer != nil {

@@ -111,14 +111,32 @@ func TestModelManager_Verify_PlaceholderMode(t *testing.T) {
 	baseDir := t.TempDir()
 	mm := NewModelManager(baseDir)
 
-	// Ensure pinnedChecksums is empty (placeholder mode).
+	// Ensure pinnedChecksums has placeholder values (CR-03: fail-closed).
+	origChecksums := pinnedChecksums
+	defer func() { pinnedChecksums = origChecksums }()
+	pinnedChecksums = map[string]string{
+		"model.onnx":     "PLACEHOLDER",
+		"tokenizer.json": "PLACEHOLDER",
+	}
+
+	// With placeholder checksums, Verify should fail-closed (CR-03).
+	err := mm.Verify()
+	assert.Error(t, err, "Verify should fail-closed when checksums are PLACEHOLDER")
+	assert.Contains(t, err.Error(), "no valid pinned checksum")
+}
+
+func TestModelManager_Verify_EmptyChecksums_FailClosed(t *testing.T) {
+	baseDir := t.TempDir()
+	mm := NewModelManager(baseDir)
+
+	// Empty pinnedChecksums should also fail-closed (CR-03).
 	origChecksums := pinnedChecksums
 	defer func() { pinnedChecksums = origChecksums }()
 	pinnedChecksums = map[string]string{}
 
-	// With empty checksums, Verify should succeed with a warning (placeholder mode).
+	// With no checksums at all, Verify should fail for any file without a pinned hash.
 	err := mm.Verify()
-	assert.NoError(t, err, "Verify should pass in placeholder mode (no pinned checksums)")
+	assert.Error(t, err, "Verify should fail-closed when no checksums exist")
 }
 
 func TestModelManager_Verify_CorrectChecksums(t *testing.T) {

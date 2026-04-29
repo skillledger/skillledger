@@ -3,6 +3,7 @@ package proxy
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -45,10 +46,8 @@ func NewStreamableProxy(targetURL string, dl *DecisionLog, logger zerolog.Logger
 		decisionLog: dl,
 		upgrader: websocket.Upgrader{
 			// Restrict to localhost origins to prevent browser-based attacks (DNS rebinding).
-			CheckOrigin: func(r *http.Request) bool {
-				origin := r.Header.Get("Origin")
-				return origin == "" || origin == "http://127.0.0.1" || origin == "http://localhost"
-			},
+			// CR-04: Reject empty Origin and non-localhost origins. This proxy only runs locally.
+			CheckOrigin: checkLocalhostOrigin,
 		},
 		logger:       logger,
 		pinStore:     pinStore,
@@ -349,4 +348,27 @@ func (p *StreamableProxy) serverHasPins() bool {
 		}
 	}
 	return false
+}
+
+// checkLocalhostOrigin validates that a WebSocket upgrade request has a localhost
+// Origin header. Empty origins and non-localhost origins are rejected (CR-04).
+// This proxy only runs locally so there is no reason to accept remote connections.
+func checkLocalhostOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return false
+	}
+
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+
+	host := u.Hostname()
+	switch host {
+	case "localhost", "127.0.0.1", "::1", "[::1]":
+		return true
+	default:
+		return false
+	}
 }

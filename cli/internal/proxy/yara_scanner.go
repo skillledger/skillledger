@@ -2,9 +2,9 @@ package proxy
 
 import (
 	"net/http"
-	"os"
 
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/afero"
 	"github.com/skillledger/skillledger/internal/yara"
 )
 
@@ -17,15 +17,21 @@ type YARAScanner struct {
 // NewYARAScanner creates a YARAScanner from rules in the given directory.
 // Returns nil if rulesDir is empty, does not exist, contains no valid rules,
 // or if compilation fails. This allows the proxy to run without YARA rules.
-func NewYARAScanner(rulesDir string) *YARAScanner {
+//
+// CR-06b: The fs parameter is used for the directory existence check. However,
+// the underlying yara.Engine (yargo) requires real filesystem paths for its C-based
+// rule parser, so rule file reads still go through the real OS. This is an accepted
+// exception documented here.
+func NewYARAScanner(fs afero.Fs, rulesDir string) *YARAScanner {
 	if rulesDir == "" {
 		return nil
 	}
 
-	if _, err := os.Stat(rulesDir); os.IsNotExist(err) {
+	if _, err := fs.Stat(rulesDir); err != nil {
 		return nil
 	}
 
+	// yara.NewEngine reads rule files via the real filesystem (yargo/C library requirement).
 	engine, err := yara.NewEngine(rulesDir)
 	if err != nil {
 		log.Warn().Err(err).Str("dir", rulesDir).Msg("YARA rules compilation failed, scanner disabled")

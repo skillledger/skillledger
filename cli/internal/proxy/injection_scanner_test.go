@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,7 +70,7 @@ func TestInjectionAllowlist_LoadFromFile(t *testing.T) {
 `
 	require.NoError(t, os.WriteFile(path, []byte(content), 0644))
 
-	al, err := LoadInjectionAllowlist(path)
+	al, err := LoadInjectionAllowlist(afero.NewOsFs(),path)
 	require.NoError(t, err)
 
 	assert.True(t, al.IsAllowed("test-server", "test-tool"))
@@ -78,7 +79,7 @@ func TestInjectionAllowlist_LoadFromFile(t *testing.T) {
 }
 
 func TestInjectionAllowlist_MissingFileReturnsEmpty(t *testing.T) {
-	al, err := LoadInjectionAllowlist("/nonexistent/path/allowlist.yaml")
+	al, err := LoadInjectionAllowlist(afero.NewOsFs(),"/nonexistent/path/allowlist.yaml")
 	require.NoError(t, err, "missing file should not be an error")
 	assert.False(t, al.IsAllowed("any-server", "any-tool"))
 }

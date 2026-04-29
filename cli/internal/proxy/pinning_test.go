@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -353,7 +354,7 @@ func TestToolPinStoreSaveAndLoad(t *testing.T) {
 	pinPath := filepath.Join(dir, "pins.json")
 
 	// Create and populate store.
-	store1 := NewToolPinStore(pinPath)
+	store1 := NewToolPinStore(afero.NewOsFs(),pinPath)
 	tool := MCPTool{
 		Name:        "read_file",
 		Description: "Reads a file from disk",
@@ -371,7 +372,7 @@ func TestToolPinStoreSaveAndLoad(t *testing.T) {
 	assert.Equal(t, os.FileMode(0600), info.Mode().Perm(), "pin file should have 0600 permissions")
 
 	// Load into a new store and verify.
-	store2 := NewToolPinStore(pinPath)
+	store2 := NewToolPinStore(afero.NewOsFs(),pinPath)
 	err = store2.Load()
 	require.NoError(t, err)
 
@@ -385,7 +386,7 @@ func TestToolPinStoreLoadNonExistentFile(t *testing.T) {
 	dir := t.TempDir()
 	pinPath := filepath.Join(dir, "nonexistent", "pins.json")
 
-	store := NewToolPinStore(pinPath)
+	store := NewToolPinStore(afero.NewOsFs(),pinPath)
 	err := store.Load()
 	assert.NoError(t, err, "loading non-existent file should not error")
 }
@@ -400,14 +401,14 @@ func TestToolPinStoreRoundTripMultipleTools(t *testing.T) {
 		{Name: "delete_file", Description: "Delete", InputSchema: json.RawMessage(`{"type":"object"}`)},
 	}
 
-	store := NewToolPinStore(pinPath)
+	store := NewToolPinStore(afero.NewOsFs(),pinPath)
 	err := store.PinAll("server-a", tools)
 	require.NoError(t, err)
 
 	err = store.Save()
 	require.NoError(t, err)
 
-	store2 := NewToolPinStore(pinPath)
+	store2 := NewToolPinStore(afero.NewOsFs(),pinPath)
 	err = store2.Load()
 	require.NoError(t, err)
 
@@ -428,14 +429,14 @@ func TestToolPinStoreDetectsBetweenSessionDescriptionChange(t *testing.T) {
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"}}}`),
 	}
 
-	store := NewToolPinStore(pinPath)
+	store := NewToolPinStore(afero.NewOsFs(),pinPath)
 	err := store.Pin("server-1", originalTool)
 	require.NoError(t, err)
 	err = store.Save()
 	require.NoError(t, err)
 
 	// Reload and check with modified description.
-	store2 := NewToolPinStore(pinPath)
+	store2 := NewToolPinStore(afero.NewOsFs(),pinPath)
 	err = store2.Load()
 	require.NoError(t, err)
 
@@ -465,13 +466,13 @@ func TestToolPinStoreDetectsBetweenSessionSchemaChange(t *testing.T) {
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"}}}`),
 	}
 
-	store := NewToolPinStore(pinPath)
+	store := NewToolPinStore(afero.NewOsFs(),pinPath)
 	err := store.Pin("server-1", originalTool)
 	require.NoError(t, err)
 	err = store.Save()
 	require.NoError(t, err)
 
-	store2 := NewToolPinStore(pinPath)
+	store2 := NewToolPinStore(afero.NewOsFs(),pinPath)
 	err = store2.Load()
 	require.NoError(t, err)
 
@@ -491,7 +492,7 @@ func TestToolPinStoreDetectsBetweenSessionSchemaChange(t *testing.T) {
 // --- Mid-session rug-pull detection tests ---
 
 func TestToolPinStoreDetectsMidSessionToolAddition(t *testing.T) {
-	store := NewToolPinStore("")
+	store := NewToolPinStore(afero.NewOsFs(),"")
 
 	originalTools := []MCPTool{
 		{Name: "read_file", Description: "Read", InputSchema: json.RawMessage(`{"type":"object"}`)},
@@ -517,7 +518,7 @@ func TestToolPinStoreDetectsMidSessionToolAddition(t *testing.T) {
 }
 
 func TestToolPinStoreDetectsMidSessionToolRemoval(t *testing.T) {
-	store := NewToolPinStore("")
+	store := NewToolPinStore(afero.NewOsFs(),"")
 
 	originalTools := []MCPTool{
 		{Name: "read_file", Description: "Read", InputSchema: json.RawMessage(`{"type":"object"}`)},
@@ -542,7 +543,7 @@ func TestToolPinStoreDetectsMidSessionToolRemoval(t *testing.T) {
 }
 
 func TestToolPinStoreDetectsMidSessionSchemaChange(t *testing.T) {
-	store := NewToolPinStore("")
+	store := NewToolPinStore(afero.NewOsFs(),"")
 
 	originalTools := []MCPTool{
 		{Name: "read_file", Description: "Read", InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"}}}`)},
@@ -565,7 +566,7 @@ func TestToolPinStoreDetectsMidSessionSchemaChange(t *testing.T) {
 }
 
 func TestToolPinStoreNoMidSessionChanges(t *testing.T) {
-	store := NewToolPinStore("")
+	store := NewToolPinStore(afero.NewOsFs(),"")
 
 	tools := []MCPTool{
 		{Name: "read_file", Description: "Read", InputSchema: json.RawMessage(`{"type":"object"}`)},
@@ -593,7 +594,7 @@ func TestToolPinStoreAcceptUpdatesPinEntry(t *testing.T) {
 		InputSchema: json.RawMessage(`{"type":"object"}`),
 	}
 
-	store := NewToolPinStore(pinPath)
+	store := NewToolPinStore(afero.NewOsFs(),pinPath)
 	err := store.Pin("server-1", originalTool)
 	require.NoError(t, err)
 
@@ -683,7 +684,7 @@ func TestToolPinStorePinFileFormat(t *testing.T) {
 	dir := t.TempDir()
 	pinPath := filepath.Join(dir, "pins.json")
 
-	store := NewToolPinStore(pinPath)
+	store := NewToolPinStore(afero.NewOsFs(),pinPath)
 	tool := MCPTool{
 		Name:        "read_file",
 		Description: "Reads files",
@@ -720,7 +721,7 @@ func TestToolPinStoreFirstConnectionPinsAllTools(t *testing.T) {
 	dir := t.TempDir()
 	pinPath := filepath.Join(dir, "pins.json")
 
-	store := NewToolPinStore(pinPath)
+	store := NewToolPinStore(afero.NewOsFs(),pinPath)
 
 	tools := []MCPTool{
 		{Name: "read_file", Description: "Read", InputSchema: json.RawMessage(`{"type":"object"}`)},
@@ -745,7 +746,7 @@ func TestToolPinStoreFirstConnectionPinsAllTools(t *testing.T) {
 // --- Multiple servers isolation test ---
 
 func TestToolPinStoreIsolatesServers(t *testing.T) {
-	store := NewToolPinStore("")
+	store := NewToolPinStore(afero.NewOsFs(),"")
 
 	tool := MCPTool{
 		Name:        "read_file",

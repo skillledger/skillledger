@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,7 +26,7 @@ type InjectionAllowlist struct {
 	entries map[string]bool
 }
 
-// LoadInjectionAllowlist reads an injection allowlist from a YAML file.
+// LoadInjectionAllowlist reads an injection allowlist from a YAML file via afero.Fs (CR-06a).
 // If the file does not exist, it returns an empty allowlist (not an error).
 // The YAML file should have the structure:
 //
@@ -33,12 +34,12 @@ type InjectionAllowlist struct {
 //	  - server_id: "my-server"
 //	    tool_name: "my-tool"
 //	    reason: "known false positive"
-func LoadInjectionAllowlist(path string) (*InjectionAllowlist, error) {
+func LoadInjectionAllowlist(fs afero.Fs, path string) (*InjectionAllowlist, error) {
 	al := &InjectionAllowlist{
 		entries: make(map[string]bool),
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := afero.ReadFile(fs, path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Missing file is not an error -- return empty allowlist.

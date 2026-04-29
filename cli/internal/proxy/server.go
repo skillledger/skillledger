@@ -227,13 +227,13 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 	var allowlist *InjectionAllowlist
 	if s.injAllowlistPath != "" {
 		var loadErr error
-		allowlist, loadErr = LoadInjectionAllowlist(s.injAllowlistPath)
+		allowlist, loadErr = LoadInjectionAllowlist(s.fs, s.injAllowlistPath)
 		if loadErr != nil {
 			s.logger.Warn().Err(loadErr).Str("path", s.injAllowlistPath).Msg("failed to load injection allowlist")
 		}
 	} else {
 		// Try default path.
-		allowlist, _ = LoadInjectionAllowlist(filepath.Join(s.baseDir, "injection-allowlist.yaml"))
+		allowlist, _ = LoadInjectionAllowlist(s.fs, filepath.Join(s.baseDir, "injection-allowlist.yaml"))
 	}
 	injScanner := NewInjectionScanner(allowlist)
 	if s.deepScan {
@@ -244,7 +244,7 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 
 	// Phase 14: YARA scanner from user-supplied rules directory.
 	if s.yaraRulesDir != "" {
-		yaraScanner := NewYARAScanner(s.yaraRulesDir)
+		yaraScanner := NewYARAScanner(s.fs, s.yaraRulesDir)
 		if yaraScanner != nil {
 			scanners = append(scanners, yaraScanner)
 			s.logger.Info().Str("dir", s.yaraRulesDir).Msg("YARA scanner loaded into pipeline")
@@ -254,7 +254,7 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 	pipeline := NewScanPipeline(scanners...)
 
 	// Phase 12: Initialize ToolPinStore.
-	pinStore := NewToolPinStore(filepath.Join(s.baseDir, "pins.json"))
+	pinStore := NewToolPinStore(s.fs, filepath.Join(s.baseDir, "pins.json"))
 	if loadErr := pinStore.Load(); loadErr != nil {
 		s.logger.Warn().Err(loadErr).Msg("failed to load pin store -- starting fresh")
 	}

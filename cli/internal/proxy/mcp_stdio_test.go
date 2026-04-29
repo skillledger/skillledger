@@ -10,6 +10,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/skillledger/skillledger/internal/proxy"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -202,7 +203,7 @@ func TestMCPWrapper_AutoPinFirstConnection(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	pinPath := filepath.Join(tmpDir, "pins.json")
-	pinStore := proxy.NewToolPinStore(pinPath)
+	pinStore := proxy.NewToolPinStore(afero.NewOsFs(),pinPath)
 
 	policyConfig := testPolicyConfig()
 
@@ -254,7 +255,7 @@ func TestMCPWrapper_BetweenSessionChange(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	pinPath := filepath.Join(tmpDir, "pins.json")
-	pinStore := proxy.NewToolPinStore(pinPath)
+	pinStore := proxy.NewToolPinStore(afero.NewOsFs(),pinPath)
 
 	policyConfig := testPolicyConfig()
 
@@ -310,7 +311,7 @@ func TestMCPWrapper_MidSessionRugPull(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	pinPath := filepath.Join(tmpDir, "pins.json")
-	pinStore := proxy.NewToolPinStore(pinPath)
+	pinStore := proxy.NewToolPinStore(afero.NewOsFs(),pinPath)
 
 	policyConfig := testPolicyConfig()
 

@@ -1,5 +1,7 @@
 bin/
+!npm/skillledger/bin/
 *.exe
+!npm/skillledger/bin/*.js
 .env
 __pycache__/
 *.pyc
@@ -12,3 +14,5 @@ vendor/
 coverage.out
 .DS_Store
 *.db
+npm/dist/
+npm/skillledger/cache/

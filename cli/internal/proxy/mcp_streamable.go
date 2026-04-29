@@ -27,9 +27,10 @@ type StreamableProxy struct {
 	pinStore      *ToolPinStore
 	injScanner    *InjectionScanner
 	tracker       *requestTracker
-	serverID      string
-	sessionPinned bool
-	policyConfig  *PolicyConfig
+	serverID        string
+	sessionPinned   bool
+	policyConfig    *PolicyConfig
+	violationWriter *ViolationWriter
 }
 
 // NewStreamableProxy creates a new WebSocket MCP proxy that forwards to the given target URL.
@@ -56,6 +57,11 @@ func NewStreamableProxy(targetURL string, dl *DecisionLog, logger zerolog.Logger
 		serverID:     serverID,
 		policyConfig: policyConfig,
 	}
+}
+
+// SetViolationWriter sets the ViolationWriter for persisting findings to violations.jsonl.
+func (p *StreamableProxy) SetViolationWriter(vw *ViolationWriter) {
+	p.violationWriter = vw
 }
 
 // ServeHTTP implements http.Handler. It upgrades the incoming connection to WebSocket,
@@ -122,6 +128,11 @@ func (p *StreamableProxy) relayWebSocket(src, dst *websocket.Conn, direction str
 				Destination: p.targetURL,
 			}
 			p.decisionLog.Record(entry)
+			if p.violationWriter != nil && len(entry.Findings) > 0 {
+				if err := p.violationWriter.WriteFindings(entry); err != nil {
+					p.logger.Warn().Err(err).Msg("failed to write violation entry")
+				}
+			}
 			p.logger.Debug().
 				Str("method", msg.Method).
 				Str("direction", direction).
@@ -232,8 +243,21 @@ func (p *StreamableProxy) handleFirstToolsList(tools []MCPTool) {
 					change.ToolName, change.Severity, change.OldHash, change.NewHash),
 				Protocol:    "mcp-streamable",
 				Destination: p.targetURL,
+				Findings: []Finding{{
+					Scanner:     "pinchange",
+					Severity:    string(change.Severity),
+					Description: fmt.Sprintf("between-session pin change for tool %s", change.ToolName),
+					Pattern:     change.ToolName,
+					MatchValue:  fmt.Sprintf("old=%s new=%s", change.OldHash, change.NewHash),
+					Decision:    action,
+				}},
 			}
 			p.decisionLog.Record(entry)
+			if p.violationWriter != nil {
+				if err := p.violationWriter.WriteFindings(entry); err != nil {
+					p.logger.Warn().Err(err).Msg("failed to write violation entry")
+				}
+			}
 			p.logger.Warn().
 				Str("server_id", p.serverID).
 				Str("tool", change.ToolName).
@@ -259,8 +283,21 @@ func (p *StreamableProxy) handleSubsequentToolsList(tools []MCPTool) {
 				change.ToolName, change.Severity, change.OldHash, change.NewHash),
 			Protocol:    "mcp-streamable",
 			Destination: p.targetURL,
+			Findings: []Finding{{
+				Scanner:     "pinchange",
+				Severity:    string(change.Severity),
+				Description: fmt.Sprintf("mid-session rug-pull for tool %s", change.ToolName),
+				Pattern:     change.ToolName,
+				MatchValue:  fmt.Sprintf("old=%s new=%s", change.OldHash, change.NewHash),
+				Decision:    ActionBlock,
+			}},
 		}
 		p.decisionLog.Record(entry)
+		if p.violationWriter != nil {
+			if err := p.violationWriter.WriteFindings(entry); err != nil {
+				p.logger.Warn().Err(err).Msg("failed to write violation entry")
+			}
+		}
 		p.logger.Error().
 			Str("server_id", p.serverID).
 			Str("tool", change.ToolName).
@@ -286,8 +323,14 @@ func (p *StreamableProxy) handleToolsCallResponse(msg *JSONRPCMessage) {
 			Reason:      fmt.Sprintf("injection finding: %s", f.Description),
 			Protocol:    "mcp-streamable",
 			Destination: p.targetURL,
+			Findings:    []Finding{f},
 		}
 		p.decisionLog.Record(entry)
+		if p.violationWriter != nil {
+			if err := p.violationWriter.WriteFindings(entry); err != nil {
+				p.logger.Warn().Err(err).Msg("failed to write violation entry")
+			}
+		}
 		p.logger.Warn().
 			Str("server_id", p.serverID).
 			Str("pattern", f.Pattern).

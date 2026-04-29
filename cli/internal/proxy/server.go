@@ -330,6 +330,9 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 		s.streamableProxy.decisionLog = s.decisionLog
 	}
 
+	// Wire ViolationWriter into StreamableProxy (set later in Start() if violationLogPath is configured).
+	// This is a forward reference -- the actual wiring happens in Start() after ViolationWriter creation.
+
 	s.handler = NewHandler(s.decisionLog, pipeline, s.capabilityEval, s.trustVerifier, s.policyConfig, s.logger)
 	s.proxy = goproxy.NewProxyHttpServer()
 
@@ -481,6 +484,9 @@ func (s *ProxyServer) Start(ctx context.Context) error {
 		} else {
 			s.violationWriter = vw
 			s.handler.SetViolationWriter(vw)
+			if s.streamableProxy != nil {
+				s.streamableProxy.SetViolationWriter(vw)
+			}
 		}
 	}
 

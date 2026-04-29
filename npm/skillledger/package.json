@@ -1,0 +1,36 @@
+{
+  "name": "skillledger",
+  "version": "0.0.0-dev",
+  "description": "Supply-chain security toolchain for AI agent skills",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skillledger/skillledger"
+  },
+  "homepage": "https://github.com/skillledger/skillledger#readme",
+  "keywords": [
+    "security",
+    "supply-chain",
+    "ai-agents",
+    "skills",
+    "verification",
+    "sbom",
+    "provenance"
+  ],
+  "bin": {
+    "skillledger": "bin/skillledger.js"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@skillledger/cli-darwin-arm64": "0.0.0-dev",
+    "@skillledger/cli-darwin-x64": "0.0.0-dev",
+    "@skillledger/cli-linux-x64": "0.0.0-dev",
+    "@skillledger/cli-linux-arm64": "0.0.0-dev",
+    "@skillledger/cli-win32-x64": "0.0.0-dev"
+  }
+}

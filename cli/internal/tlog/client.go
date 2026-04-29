@@ -40,10 +40,10 @@ func WithAPIKey(key string) Option {
 }
 
 // NewClient creates a transparency log client with the given options.
-// Defaults to http://localhost:8000.
+// Defaults to https://api.skillledger.dev.
 func NewClient(opts ...Option) *Client {
 	c := &Client{
-		serviceURL: "http://localhost:8000",
+		serviceURL: "https://api.skillledger.dev",
 		http:       http.DefaultClient,
 	}
 	for _, opt := range opts {

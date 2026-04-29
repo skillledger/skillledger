@@ -13,7 +13,7 @@ import (
 
 func TestNewClient_Defaults(t *testing.T) {
 	c := NewClient()
-	assert.Equal(t, "http://localhost:8000", c.serviceURL)
+	assert.Equal(t, "https://api.skillledger.dev", c.serviceURL)
 	assert.NotNil(t, c.http)
 }
 

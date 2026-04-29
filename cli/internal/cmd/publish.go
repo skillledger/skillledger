@@ -38,7 +38,7 @@ the artifact, lockfile, and signing bundle.`,
 func runPublish(cmd *cobra.Command, args []string) error {
 	artifactPath, _ := cmd.Flags().GetString("artifact")
 	lockfilePath, _ := cmd.Flags().GetString("lockfile")
-	serviceURL, _ := cmd.Flags().GetString("service-url")
+	serviceURL := resolveServiceURL(cmd, "service-url")
 	publisher, _ := cmd.Flags().GetString("publisher")
 	apiKey, _ := cmd.Flags().GetString("api-key")
 	if apiKey == "" {
@@ -115,7 +115,7 @@ func runPublish(cmd *cobra.Command, args []string) error {
 func init() {
 	publishCmd.Flags().StringP("artifact", "a", "", "path to the built .skillledger.tar.gz artifact (required)")
 	publishCmd.Flags().StringP("lockfile", "l", "", "path to skill-lock.json (default: auto-detect from artifact location)")
-	publishCmd.Flags().String("service-url", "http://localhost:8000", "SkillLedger service URL")
+	publishCmd.Flags().String("service-url", defaultServiceURL, "SkillLedger service URL")
 	publishCmd.Flags().StringP("publisher", "p", "", "publisher identity (OIDC email or identity, required)")
 	publishCmd.Flags().String("api-key", "", "API key for authenticated publish (or set SKILLLEDGER_API_KEY env var)")
 	_ = publishCmd.MarkFlagRequired("artifact")

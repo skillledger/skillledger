@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate tag matches VERSION
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          FILE_VERSION=$(cat cli/VERSION | tr -d '[:space:]')
+          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match cli/VERSION ($FILE_VERSION)"
+            exit 1
+          fi
+          echo "VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Cross-compile binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          make build-all
+          echo "::notice::Built binaries for all 5 platforms"
+          ls -la bin/skillledger-*
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd bin
+          sha256sum skillledger-* > checksums.txt
+          echo "::notice::Generated checksums.txt"
+          cat checksums.txt
+
+      - name: Embed checksums in download.js
+        shell: bash
+        run: |
+          set -euo pipefail
+          node npm/scripts/embed-checksums.js
+
+      - name: Build npm packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          node npm/scripts/build-packages.js
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bin/skillledger-*
+            bin/checksums.txt
+          generate_release_notes: true
+
+      - name: Publish to npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          node npm/scripts/publish.js
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::notice::Running post-publish smoke test"
+          sleep 10
+          npx skillledger@${{ env.VERSION }} --version
+          echo "::notice::Smoke test passed"

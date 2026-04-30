@@ -1,0 +1,54 @@
+name: Ingest Threat Library
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'threat-library/**'
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate data before ingestion
+        run: |
+          pip install jsonschema
+          python scripts/validate-threat-library.py
+
+      - name: Ingest into hosted service
+        env:
+          SKILLLEDGER_SERVICE_URL: ${{ secrets.SKILLLEDGER_SERVICE_URL }}
+          SKILLLEDGER_ADMIN_KEY: ${{ secrets.SKILLLEDGER_ADMIN_KEY }}
+        run: |
+          python3 -c "
+          import json, urllib.request, os, pathlib
+
+          base = pathlib.Path('threat-library')
+          hashes = json.loads((base / 'ioc' / 'hashes.json').read_text())
+          domains = json.loads((base / 'ioc' / 'domains.json').read_text())
+
+          rules = []
+          rules_dir = base / 'yara' / 'rules'
+          if rules_dir.exists():
+              for yar in rules_dir.glob('*.yar'):
+                  rules.append({
+                      'name': yar.stem,
+                      'content': yar.read_text(),
+                      'source': 'community'
+                  })
+
+          payload = json.dumps({'hashes': hashes, 'domains': domains, 'rules': rules}).encode()
+          url = os.environ['SKILLLEDGER_SERVICE_URL'].rstrip('/') + '/v1/admin/threat-library/ingest'
+          req = urllib.request.Request(url, data=payload, method='POST', headers={
+              'Content-Type': 'application/json',
+              'Authorization': f\"Bearer {os.environ['SKILLLEDGER_ADMIN_KEY']}\"
+          })
+          resp = urllib.request.urlopen(req)
+          print(f'Ingestion response ({resp.status}): {resp.read().decode()}')
+          "

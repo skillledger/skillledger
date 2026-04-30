@@ -19,9 +19,14 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "SKILLLEDGER_ADMIN_API_KEY is not set. Admin endpoints will be inaccessible."
         )
+    if not settings.jwt_secret and not settings.debug:
+        logger.warning(
+            "SKILLLEDGER_JWT_SECRET is not set. JWT auth will use an insecure default."
+        )
     eng = get_engine()
-    async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    if settings.debug:
+        async with eng.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
     yield
     await eng.dispose()
 

@@ -11,6 +11,8 @@ dependencies = [
     "asyncpg",
     "alembic",
     "httpx",
+    "PyJWT>=2.12",
+    "resend>=2.29",
 ]
 
 [project.optional-dependencies]

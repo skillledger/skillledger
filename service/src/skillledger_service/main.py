@@ -3,7 +3,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from skillledger_service.db import get_engine, get_settings
+from skillledger_service.db import get_async_session_factory, get_engine, get_settings
+from skillledger_service.seed import seed_threat_data
 from skillledger_service.health import router as health_router
 from skillledger_service.models import Base
 from skillledger_service.routers.log import router as log_router
@@ -28,6 +29,9 @@ async def lifespan(app: FastAPI):
     if settings.debug:
         async with eng.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+    # Auto-seed threat library data from bundled CLI files (D-02: zero-touch deployment)
+    async with get_async_session_factory()() as session:
+        await seed_threat_data(session)
     yield
     await eng.dispose()
 

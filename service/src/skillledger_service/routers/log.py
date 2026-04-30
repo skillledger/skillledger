@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Union
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +12,12 @@ from skillledger_service.db import get_session, get_settings
 from skillledger_service.models.artifact import LogEntryRecord
 from skillledger_service.models.publisher import Publisher
 from skillledger_service.models.user import User
-from skillledger_service.user_auth import get_current_identity
+from skillledger_service.usage import (
+    FREE_TIER_PUBLISH_LIMIT,
+    _next_month_reset,
+    check_tlog_limit,
+    increment_usage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +48,8 @@ class LookupResponse(BaseModel):
 @router.post("/publish", response_model=PublishResponse)
 async def publish_entry(
     entry: ArtifactEntry,
-    identity: Union[User, Publisher] = Depends(get_current_identity),
+    response: Response,
+    identity: Union[User, Publisher] = Depends(check_tlog_limit),
     session: AsyncSession = Depends(get_session),
 ) -> PublishResponse:
     published_at = datetime.now(timezone.utc)
@@ -107,6 +113,18 @@ async def publish_entry(
             status_code=500,
             detail="Entry added to log but metadata save failed. Contact admin.",
         )
+
+    # Increment usage AFTER successful publish (D-10: failed publishes not counted)
+    if isinstance(identity, User):
+        month = datetime.now(timezone.utc).strftime("%Y-%m")
+        new_count = await increment_usage(session, identity.id, "tlog_publish", month)
+        await session.commit()
+        resets_at = _next_month_reset(datetime.now(timezone.utc))
+        response.headers["X-RateLimit-Limit"] = str(FREE_TIER_PUBLISH_LIMIT)
+        response.headers["X-RateLimit-Remaining"] = str(
+            max(0, FREE_TIER_PUBLISH_LIMIT - new_count)
+        )
+        response.headers["X-RateLimit-Reset"] = resets_at.isoformat()
 
     return PublishResponse(log_index=log_index, artifact_id=entry.artifact_id)
 

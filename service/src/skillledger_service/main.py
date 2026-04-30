@@ -12,6 +12,7 @@ from skillledger_service.routers.auth_router import router as auth_router
 from skillledger_service.routers.publishers import router as publishers_router
 from skillledger_service.routers.ingest import router as ingest_router
 from skillledger_service.routers.threat_library import router as threat_library_router
+from skillledger_service.routers.usage_router import router as usage_router
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(threat_library_router)
     app.include_router(ingest_router)
+    app.include_router(usage_router)
     return app
 
 

@@ -28,7 +28,12 @@ for (const [binName, platformKey] of Object.entries(BINARY_TO_PLATFORM)) {
     console.error("Missing binary: " + binPath);
     process.exit(1);
   }
-  const hash = crypto.createHash("sha256").update(fs.readFileSync(binPath)).digest("hex");
+  const binData = fs.readFileSync(binPath);
+  if (binData.length === 0) {
+    console.error("Binary is zero bytes: " + binPath);
+    process.exit(1);
+  }
+  const hash = crypto.createHash("sha256").update(binData).digest("hex");
   checksums[platformKey] = hash;
   console.log("  " + platformKey + ": " + hash);
 }
@@ -40,14 +45,25 @@ const checksumLines = Object.entries(checksums)
   .map(([k, v]) => `  "${k}": "${v}"`)
   .join(",\n");
 
+const sentinel = /^const CHECKSUMS = \{\};$/m;
+const matches = content.match(new RegExp(sentinel.source, "gm"));
+if (!matches) {
+  console.error("Failed to find CHECKSUMS placeholder in download.js");
+  process.exit(1);
+}
+if (matches.length > 1) {
+  console.error("Multiple CHECKSUMS placeholders found in download.js (" + matches.length + " matches) — aborting to avoid incorrect replacement");
+  process.exit(1);
+}
+
 content = content.replace(
-  "const CHECKSUMS = {};",
+  sentinel,
   `const CHECKSUMS = {\n${checksumLines},\n};`
 );
 
-// Validate the replacement happened
-if (content.includes("const CHECKSUMS = {};")) {
-  console.error("Failed to find CHECKSUMS placeholder in download.js");
+// Post-replacement sanity check
+if (sentinel.test(content)) {
+  console.error("CHECKSUMS placeholder still present after replacement — replacement failed");
   process.exit(1);
 }
 

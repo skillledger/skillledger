@@ -3,7 +3,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
+const { execSync, spawnSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const NPM_DIR = path.join(ROOT, "npm");
@@ -28,11 +28,11 @@ function npmPublish(dir) {
 
   // Idempotency check: skip if version already published
   try {
-    const existing = execSync("npm view " + name + "@" + version + " version", {
+    const result = spawnSync("npm", ["view", name + "@" + version, "version"], {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
-    }).trim();
-    if (existing === version) {
+    });
+    if (result.status === 0 && result.stdout.trim() === version) {
       console.log("Skipping " + name + "@" + version + " (already published)");
       return;
     }
@@ -40,13 +40,16 @@ function npmPublish(dir) {
     // npm view exits non-zero if package/version does not exist -- proceed to publish
   }
 
-  let cmd = "npm publish --access public --tag latest";
+  const args = ["publish", "--access", "public", "--tag", "latest"];
   if (DRY_RUN) {
-    cmd += " --dry-run";
+    args.push("--dry-run");
   }
 
   console.log("Publishing " + name + "@" + version + "...");
-  execSync(cmd, { cwd: dir, stdio: "inherit" });
+  const pub = spawnSync("npm", args, { cwd: dir, stdio: "inherit" });
+  if (pub.status !== 0) {
+    throw new Error("npm publish failed for " + name + "@" + version + " (exit " + pub.status + ")");
+  }
 
   if (!DRY_RUN) {
     published.push({ name, version });
@@ -67,15 +70,24 @@ function rollback() {
 
   console.error("Rolling back " + published.length + " published packages...");
 
+  const rollbackFailures = [];
   for (let i = published.length - 1; i >= 0; i--) {
     const { name, version } = published[i];
     try {
       console.error("  Unpublishing " + name + "@" + version + "...");
-      execSync("npm unpublish " + name + "@" + version, { stdio: "inherit" });
+      const result = spawnSync("npm", ["unpublish", name + "@" + version], { stdio: "inherit" });
+      if (result.status !== 0) {
+        throw new Error("exit code " + result.status);
+      }
       console.error("  Rolled back " + name + "@" + version);
     } catch (err) {
       console.error("  Failed to roll back " + name + "@" + version + ": " + err.message);
+      rollbackFailures.push(name + "@" + version);
     }
+  }
+  if (rollbackFailures.length > 0) {
+    console.error("\n  MANUAL ACTION REQUIRED: " + rollbackFailures.length + " package(s) could not be unpublished:");
+    rollbackFailures.forEach(p => console.error("    npm unpublish " + p));
   }
 }
 

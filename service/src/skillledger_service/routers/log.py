@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+from typing import Union
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,10 +8,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from skillledger_service.auth import get_current_publisher
 from skillledger_service.db import get_session, get_settings
 from skillledger_service.models.artifact import LogEntryRecord
 from skillledger_service.models.publisher import Publisher
+from skillledger_service.models.user import User
+from skillledger_service.user_auth import get_current_identity
 
 logger = logging.getLogger(__name__)
 
@@ -41,16 +43,18 @@ class LookupResponse(BaseModel):
 @router.post("/publish", response_model=PublishResponse)
 async def publish_entry(
     entry: ArtifactEntry,
-    publisher: Publisher = Depends(get_current_publisher),
+    identity: Union[User, Publisher] = Depends(get_current_identity),
     session: AsyncSession = Depends(get_session),
 ) -> PublishResponse:
     published_at = datetime.now(timezone.utc)
+    # Derive publisher name from identity type
+    publisher_name = identity.name if isinstance(identity, Publisher) else identity.email
 
     payload = {
         "artifact_id": entry.artifact_id,
         "sha256": entry.sha256,
         "content_address": entry.content_address,
-        "publisher": publisher.name,
+        "publisher": publisher_name,
         "published_at": published_at.isoformat(),
     }
 
@@ -85,7 +89,7 @@ async def publish_entry(
         sha256=entry.sha256,
         content_address=entry.content_address,
         log_index=log_index,
-        publisher=publisher.name,
+        publisher=publisher_name,
         published_at=published_at,
     )
     session.add(record)

@@ -1,4 +1,5 @@
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Union
 
@@ -30,6 +31,7 @@ def create_access_token(
         "iat": now,
         "exp": now + timedelta(minutes=60),
         "type": "access",
+        "jti": str(uuid.uuid4()),
     }
     return jwt.encode(payload, secret, algorithm=algorithm)
 
@@ -44,6 +46,7 @@ def create_refresh_token(
         "iat": now,
         "exp": now + timedelta(days=30),
         "type": "refresh",
+        "jti": str(uuid.uuid4()),
     }
     return jwt.encode(payload, secret, algorithm=algorithm)
 

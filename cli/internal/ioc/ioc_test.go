@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -263,4 +265,114 @@ func TestDomainCount(t *testing.T) {
 	db.AddDomainEntry(ioc.DomainEntry{Domain: "b.com"})
 	db.AddDomainEntry(ioc.DomainEntry{Domain: "c.com"})
 	assert.Equal(t, 3, db.DomainCount())
+}
+
+// --- LoadWithCache tests ---
+
+// writeTestMetadata writes a metadata.json compatible with threatsync.LoadMetadata.
+func writeTestMetadata(t *testing.T, dir string, fetchedAt time.Time) {
+	t.Helper()
+	meta := map[string]interface{}{
+		"ioc_etag":   `"test-etag"`,
+		"yara_etag":  `"test-yara"`,
+		"fetched_at": fetchedAt.Format(time.RFC3339Nano),
+	}
+	data, err := json.Marshal(meta)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "metadata.json"), data, 0600))
+}
+
+// writeTestIOCCache writes a valid IOC cache file in API response format.
+func writeTestIOCCache(t *testing.T, dir string) {
+	t.Helper()
+	resp := map[string]interface{}{
+		"hashes": []map[string]string{
+			{"sha256": "cached-hash-1", "description": "cached entry", "severity": "high", "source": "cache-test", "reported_at": "2026-01-01"},
+			{"sha256": "cached-hash-2", "description": "another cached", "severity": "medium", "source": "cache-test", "reported_at": "2026-01-01"},
+		},
+		"domains": []map[string]string{
+			{"domain": "cached-evil.com", "description": "cached domain", "severity": "critical", "source": "cache-test", "reported_at": "2026-01-01"},
+		},
+	}
+	data, err := json.Marshal(resp)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ioc.json"), data, 0600))
+}
+
+func TestLoadWithCache_CacheNewerThanBuild(t *testing.T) {
+	dir := t.TempDir()
+	buildTime := time.Now().Add(-1 * time.Hour) // Build was 1 hour ago
+
+	writeTestMetadata(t, dir, time.Now()) // Cache fetched just now
+	writeTestIOCCache(t, dir)
+
+	db, err := ioc.LoadWithCache(dir, buildTime)
+	require.NoError(t, err)
+
+	// Should have loaded from cache (2 hashes, 1 domain)
+	assert.Equal(t, 2, db.Count(), "should have 2 hash entries from cache")
+	assert.Equal(t, 1, db.DomainCount(), "should have 1 domain entry from cache")
+
+	// Verify specific cache entry exists
+	_, found := db.Match("cached-hash-1")
+	assert.True(t, found, "should find cached-hash-1")
+}
+
+func TestLoadWithCache_BundledNewer(t *testing.T) {
+	dir := t.TempDir()
+	buildTime := time.Now()                                                     // Build is now
+	writeTestMetadata(t, dir, time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)) // Cache is old
+	writeTestIOCCache(t, dir)
+
+	db, err := ioc.LoadWithCache(dir, buildTime)
+	require.NoError(t, err)
+
+	// Should have loaded from bundled data, not cache
+	_, found := db.Match("cached-hash-1")
+	assert.False(t, found, "should NOT find cached-hash-1 when using bundled data")
+}
+
+func TestLoadWithCache_CorruptCache(t *testing.T) {
+	dir := t.TempDir()
+	buildTime := time.Now().Add(-1 * time.Hour)
+
+	writeTestMetadata(t, dir, time.Now())
+
+	// Write corrupt JSON to ioc.json
+	cachePath := filepath.Join(dir, "ioc.json")
+	require.NoError(t, os.WriteFile(cachePath, []byte(`{{{invalid json`), 0600))
+
+	db, err := ioc.LoadWithCache(dir, buildTime)
+	require.NoError(t, err)
+
+	// Corrupt file should be deleted (D-07)
+	_, statErr := os.Stat(cachePath)
+	assert.True(t, os.IsNotExist(statErr), "corrupt cache file should be deleted")
+
+	// Should have fallen back to bundled data
+	_, found := db.Match("cached-hash-1")
+	assert.False(t, found, "should NOT find cached-hash-1 when falling back to bundled")
+}
+
+func TestLoadWithCache_NoCacheDir(t *testing.T) {
+	db, err := ioc.LoadWithCache("", time.Now())
+	require.NoError(t, err)
+
+	// Should load bundled data (Count may be 0 for empty seed, but no error)
+	assert.NotNil(t, db)
+}
+
+func TestLoadWithCache_MissingCacheFiles(t *testing.T) {
+	dir := t.TempDir()
+	buildTime := time.Now().Add(-1 * time.Hour)
+
+	// Write metadata but no ioc.json
+	writeTestMetadata(t, dir, time.Now())
+
+	db, err := ioc.LoadWithCache(dir, buildTime)
+	require.NoError(t, err)
+
+	// Should fall back to bundled data
+	_, found := db.Match("cached-hash-1")
+	assert.False(t, found, "should NOT find cached-hash-1")
 }

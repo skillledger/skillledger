@@ -4,13 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/skillledger/skillledger/internal/scanner"
+	"github.com/skillledger/skillledger/internal/threatsync"
 )
 
 // Entry represents a known-compromised artifact in the IOC database.
@@ -51,7 +54,7 @@ func Load() (*Database, error) {
 	// Load bundled domain IOC data (supplementary; warn but don't fail).
 	var domainEntries []DomainEntry
 	if err := json.Unmarshal(bundledDomainData, &domainEntries); err != nil {
-		log.Printf("warning: parsing bundled domain IOC data: %v", err)
+		log.Warn().Err(err).Msg("parsing bundled domain IOC data")
 	} else {
 		db.domainEntries = domainEntries
 	}
@@ -182,6 +185,63 @@ func (d *Database) fetchAndMerge(apiURL string, client *http.Client) error {
 		d.entries[e.SHA256] = e
 	}
 	return nil
+}
+
+// LoadWithCache loads the IOC database preferring cached data when the cache
+// is newer than buildTime (D-06). Falls back to bundled data when:
+//   - cacheDir is empty
+//   - metadata.json is missing or unparseable
+//   - cache is older than build time (bundled is fresher)
+//   - cache file is missing or corrupt (D-07: deletes corrupt file)
+func LoadWithCache(cacheDir string, buildTime time.Time) (*Database, error) {
+	if cacheDir == "" {
+		return Load()
+	}
+
+	meta, err := threatsync.LoadMetadata(cacheDir)
+	if err != nil {
+		log.Debug().Err(err).Msg("ioc: no cache metadata, using bundled data")
+		return Load()
+	}
+
+	// D-06: only use cache if it's newer than build time.
+	if !meta.FetchedAt.After(buildTime) {
+		log.Debug().
+			Time("fetched_at", meta.FetchedAt).
+			Time("build_time", buildTime).
+			Msg("ioc: cache older than build, using bundled data")
+		return Load()
+	}
+
+	// Attempt to read cached IOC data.
+	cachePath := filepath.Join(cacheDir, "ioc.json")
+	data, err := os.ReadFile(cachePath)
+	if err != nil {
+		log.Debug().Err(err).Msg("ioc: cache file missing, using bundled data")
+		return Load()
+	}
+
+	// Parse as updateResponse (API response format with hashes + domains).
+	var resp updateResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		// D-07: corrupt cache -- delete and fall back to bundled.
+		log.Warn().Err(err).Str("path", cachePath).Msg("ioc: corrupt cache file, deleting")
+		os.Remove(cachePath)
+		return Load()
+	}
+
+	// Build Database from cached response.
+	db := &Database{entries: make(map[string]Entry, len(resp.Hashes))}
+	for _, e := range resp.Hashes {
+		db.entries[e.SHA256] = e
+	}
+	db.domainEntries = resp.Domains
+
+	log.Debug().
+		Int("hashes", len(resp.Hashes)).
+		Int("domains", len(resp.Domains)).
+		Msg("ioc: loaded from cache")
+	return db, nil
 }
 
 // Count returns the number of IOC entries in the database.

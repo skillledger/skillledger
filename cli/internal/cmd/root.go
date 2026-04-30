@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/skillledger/skillledger/internal/threatsync"
 	"github.com/skillledger/skillledger/internal/updatecheck"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -16,7 +18,18 @@ var (
 	jsonOutput    bool
 	noUpdateCheck bool
 	updateCheckCh <-chan *updatecheck.Result
+	threatSyncer  *threatsync.Syncer
 )
+
+// threatCacheDir returns the path to the threat data cache directory.
+// Uses $HOME/.skillledger/cache (matching D-01 cache location).
+func threatCacheDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.Getenv("HOME")
+	}
+	return filepath.Join(home, ".skillledger", "cache")
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "skillledger",
@@ -35,6 +48,14 @@ artifacts at install time against a transparency log and capability policy.`,
 		if updatecheck.ShouldCheck(noUpdateCheck) {
 			updateCheckCh = updatecheck.CheckAsync(version, afero.NewOsFs(), updatecheck.RegistryURL)
 		}
+
+		// Start background threat data sync (D-03)
+		serviceURL := defaultServiceURL
+		if envURL := os.Getenv("SKILLLEDGER_SERVICE_URL"); envURL != "" {
+			serviceURL = envURL
+		}
+		threatSyncer = threatsync.NewSyncer(serviceURL, threatCacheDir())
+		threatSyncer.StartAsync()
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		// Print update notice if available (D-14)

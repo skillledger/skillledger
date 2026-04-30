@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/rs/zerolog/log"
@@ -17,6 +18,7 @@ import (
 	"github.com/skillledger/skillledger/internal/report"
 	"github.com/skillledger/skillledger/internal/sbom"
 	"github.com/skillledger/skillledger/internal/scanner"
+	"github.com/skillledger/skillledger/internal/threatsync"
 	yaraengine "github.com/skillledger/skillledger/internal/yara"
 )
 
@@ -53,7 +55,6 @@ func runAudit(cmd *cobra.Command, args []string) error {
 	outputFile, _ := cmd.Flags().GetString("output")
 	liveIOC, _ := cmd.Flags().GetBool("live-ioc")
 	yaraRulesDir, _ := cmd.Flags().GetString("yara-rules")
-	iocAPIURL, _ := cmd.Flags().GetString("ioc-api-url")
 
 	// Validate format flag
 	validFormats := map[string]bool{"text": true, "json": true, "sarif": true, "cyclonedx": true}
@@ -61,23 +62,41 @@ func runAudit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid format %q: must be one of text, json, sarif, cyclonedx", format)
 	}
 
-	// Step 1: Load IOC database
-	iocDB, err := ioc.Load()
+	// Wait for background threat sync (D-04: 2s timeout)
+	cacheDir := threatCacheDir()
+	if threatSyncer != nil {
+		threatSyncer.WaitForSync(2 * time.Second)
+	}
+
+	// Step 1: Load IOC database (cache-first per D-09)
+	iocDB, err := ioc.LoadWithCache(cacheDir, BuildTime())
 	if err != nil {
 		return fmt.Errorf("loading IOC database: %w", err)
 	}
 
 	if liveIOC {
-		if err := iocDB.FetchUpdates(iocAPIURL); err != nil {
-			// Log warning and continue with bundled data (do NOT return error)
-			log.Warn().Err(err).Msg("Failed to fetch live IOC updates, using bundled data")
-		}
+		log.Warn().Msg("--live-ioc is deprecated: threat data is now synced automatically in the background")
 	}
 
 	log.Debug().Int("entries", iocDB.Count()).Msg("IOC database loaded")
 
-	// Step 2: Initialize YARA engine (if --yara-rules provided)
+	// Freshness indicator (D-08)
+	printThreatFreshness(cacheDir)
+
+	// Step 2: Initialize YARA engine
 	var yaraEngine *yaraengine.Engine
+
+	// Try loading YARA rules from sync cache (if no explicit --yara-rules)
+	if yaraRulesDir == "" {
+		if rules, loadErr := yaraengine.LoadCachedRules(cacheDir); loadErr == nil && len(rules) > 0 {
+			yaraEngine, err = yaraengine.NewEngineFromRules(rules)
+			if err != nil {
+				log.Debug().Err(err).Msg("Failed to compile cached YARA rules, skipping YARA scanning")
+				err = nil // reset so we don't propagate
+			}
+		}
+	}
+
 	if yaraRulesDir != "" {
 		yaraEngine, err = yaraengine.NewEngine(yaraRulesDir)
 		if err != nil {
@@ -219,6 +238,29 @@ func writeTextOutput(w io.Writer, results []scanner.ScanResult) {
 	fmt.Fprintf(w, "%s: %d skills scanned, %d clean, %d compromised, %d suspicious\n",
 		headerStyle.Render("Summary"),
 		len(results), clean, compromised, suspicious)
+}
+
+// printThreatFreshness prints the age of the cached threat data to stderr (D-08).
+func printThreatFreshness(cacheDir string) {
+	meta, err := threatsync.LoadMetadata(cacheDir)
+	if err != nil {
+		log.Info().Msg("threat library: using bundled data (offline)")
+		return
+	}
+
+	age := time.Since(meta.FetchedAt)
+	var ageStr string
+	switch {
+	case age < time.Minute:
+		ageStr = "updated just now"
+	case age < time.Hour:
+		ageStr = fmt.Sprintf("updated %dm ago", int(age.Minutes()))
+	case age < 24*time.Hour:
+		ageStr = fmt.Sprintf("updated %dh ago", int(age.Hours()))
+	default:
+		ageStr = fmt.Sprintf("updated %dd ago", int(age.Hours()/24))
+	}
+	log.Info().Msgf("threat library: %s", ageStr)
 }
 
 func init() {

@@ -1,6 +1,7 @@
 package yara
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -90,6 +91,63 @@ func NewEngine(rulesDir string) (*Engine, error) {
 	}
 
 	return &Engine{rules: compiled}, nil
+}
+
+// YaraRuleItem represents a single YARA rule from the /v1/yara JSON response.
+type YaraRuleItem struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
+	Source  string `json:"source"`
+}
+
+// yaraRulesResponse is the JSON shape of the cached yara.json file.
+type yaraRulesResponse struct {
+	Rules []YaraRuleItem `json:"rules"`
+}
+
+// NewEngineFromRules creates an Engine from pre-parsed YARA rule items
+// (typically loaded from the sync cache). It concatenates all Content fields,
+// then parses and compiles using the same path as NewEngine.
+func NewEngineFromRules(rules []YaraRuleItem) (*Engine, error) {
+	if len(rules) == 0 {
+		return nil, fmt.Errorf("no YARA rules provided")
+	}
+
+	var ruleContent strings.Builder
+	for _, r := range rules {
+		ruleContent.WriteString(r.Content)
+		ruleContent.WriteByte('\n')
+	}
+
+	p := parser.New()
+	ruleSet, err := p.Parse(ruleContent.String())
+	if err != nil {
+		return nil, fmt.Errorf("parsing YARA rules: %w", err)
+	}
+
+	compiled, err := yargoScanner.Compile(ruleSet)
+	if err != nil {
+		return nil, fmt.Errorf("compiling YARA rules: %w", err)
+	}
+
+	return &Engine{rules: compiled}, nil
+}
+
+// LoadCachedRules reads yara.json from cacheDir, parses the JSON
+// (shape: {"rules": [...]}), and returns the rules slice.
+// Returns error if file is missing or JSON is invalid.
+func LoadCachedRules(cacheDir string) ([]YaraRuleItem, error) {
+	data, err := os.ReadFile(filepath.Join(cacheDir, "yara.json"))
+	if err != nil {
+		return nil, fmt.Errorf("reading cached YARA rules: %w", err)
+	}
+
+	var resp yaraRulesResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("parsing cached YARA rules: %w", err)
+	}
+
+	return resp.Rules, nil
 }
 
 // Scan runs compiled YARA rules against content bytes.

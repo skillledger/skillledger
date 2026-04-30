@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/afero"
@@ -18,6 +19,7 @@ import (
 	"github.com/skillledger/skillledger/internal/signer"
 	"github.com/skillledger/skillledger/internal/tlog"
 	"github.com/skillledger/skillledger/internal/verify"
+	yaraengine "github.com/skillledger/skillledger/internal/yara"
 )
 
 var proxyStartCmd = &cobra.Command{
@@ -33,6 +35,13 @@ trust store.`,
 }
 
 func runProxyStart(cmd *cobra.Command, args []string) error {
+	// Wait for background threat sync (D-04: 2s timeout)
+	cacheDir := threatCacheDir()
+	if threatSyncer != nil {
+		threatSyncer.WaitForSync(2 * time.Second)
+	}
+	printThreatFreshness(cacheDir)
+
 	port, _ := cmd.Flags().GetInt("port")
 	logSize, _ := cmd.Flags().GetInt("decision-log-size")
 	preset, _ := cmd.Flags().GetString("preset")
@@ -139,6 +148,17 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 	}
 	if yaraRulesDir != "" {
 		opts = append(opts, proxy.WithYARARulesDir(yaraRulesDir))
+	} else {
+		// Try loading YARA rules from sync cache when no explicit --yara-rules
+		if rules, loadErr := yaraengine.LoadCachedRules(cacheDir); loadErr == nil && len(rules) > 0 {
+			if _, compileErr := yaraengine.NewEngineFromRules(rules); compileErr == nil {
+				// Cache has valid rules -- pass cache dir so proxy can load them
+				opts = append(opts, proxy.WithYARARulesDir(filepath.Join(cacheDir)))
+				log.Debug().Int("rules", len(rules)).Msg("YARA rules loaded from sync cache for proxy")
+			} else {
+				log.Debug().Err(compileErr).Msg("Failed to compile cached YARA rules for proxy, skipping")
+			}
+		}
 	}
 	if extraModules != nil {
 		opts = append(opts, proxy.WithExtraModules(extraModules))

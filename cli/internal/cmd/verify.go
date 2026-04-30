@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/rs/zerolog/log"
@@ -40,6 +41,13 @@ Exit codes: 0 = pass, 1 = fail (deny or error)`,
 }
 
 func runVerify(cmd *cobra.Command, args []string) error {
+	// Wait for background threat sync (D-04: 2s timeout)
+	cacheDir := threatCacheDir()
+	if threatSyncer != nil {
+		threatSyncer.WaitForSync(2 * time.Second)
+	}
+	printThreatFreshness(cacheDir)
+
 	artifactPath, _ := cmd.Flags().GetString("artifact")
 	lockfilePath, _ := cmd.Flags().GetString("lockfile")
 	bundlePath, _ := cmd.Flags().GetString("bundle")

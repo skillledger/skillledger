@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ioc-domain.schema.json",
+  "title": "IOC Domain Entries",
+  "description": "Schema for SkillLedger IOC domain indicator entries",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["domain", "description", "severity", "source", "reported_at"],
+    "additionalProperties": false,
+    "properties": {
+      "domain": {
+        "type": "string",
+        "maxLength": 255,
+        "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$",
+        "description": "Malicious domain name"
+      },
+      "description": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512,
+        "description": "Human-readable description of the threat"
+      },
+      "severity": {
+        "type": "string",
+        "enum": ["critical", "high", "medium", "low", "info"],
+        "description": "Severity level of the indicator"
+      },
+      "source": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 255,
+        "description": "Attribution source for this indicator"
+      },
+      "reported_at": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "description": "Date the indicator was reported (YYYY-MM-DD)"
+      }
+    }
+  }
+}

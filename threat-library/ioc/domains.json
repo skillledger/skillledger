@@ -1,0 +1,20 @@
+[
+  {"domain": "evil-exfil.tk", "description": "Known data exfiltration endpoint", "severity": "critical", "source": "skillledger-research", "reported_at": "2026-01-15"},
+  {"domain": "c2-callback.ml", "description": "Command and control server", "severity": "critical", "source": "skillledger-research", "reported_at": "2026-02-01"},
+  {"domain": "agent-hijack.top", "description": "Agent skill hijacking infrastructure", "severity": "high", "source": "skillledger-research", "reported_at": "2026-03-10"},
+  {"domain": "skill-backdoor.ga", "description": "Backdoored skill distribution site", "severity": "critical", "source": "skillledger-research", "reported_at": "2026-01-20"},
+  {"domain": "mcp-malware.cf", "description": "Malicious MCP server hosting", "severity": "critical", "source": "skillledger-research", "reported_at": "2026-02-15"},
+  {"domain": "credential-harvest.xyz", "description": "Credential harvesting phishing domain", "severity": "high", "source": "skillledger-research", "reported_at": "2026-03-01"},
+  {"domain": "exfil-staging.tk", "description": "Staging server for exfiltrated data", "severity": "critical", "source": "skillledger-research", "reported_at": "2026-02-10"},
+  {"domain": "agent-c2.ml", "description": "AI agent command and control endpoint", "severity": "critical", "source": "skillledger-research", "reported_at": "2026-03-15"},
+  {"domain": "payload-drop.ga", "description": "Malware payload drop server", "severity": "high", "source": "skillledger-research", "reported_at": "2026-01-25"},
+  {"domain": "skill-typosquat.top", "description": "Typosquatting domain for popular skills", "severity": "high", "source": "skillledger-research", "reported_at": "2026-02-20"},
+  {"domain": "token-steal.cf", "description": "Token theft infrastructure", "severity": "critical", "source": "skillledger-research", "reported_at": "2026-03-05"},
+  {"domain": "llm-inject.xyz", "description": "LLM prompt injection attack server", "severity": "high", "source": "skillledger-research", "reported_at": "2026-02-25"},
+  {"domain": "supply-chain-attack.tk", "description": "Supply chain attack distribution", "severity": "critical", "source": "skillledger-research", "reported_at": "2026-03-20"},
+  {"domain": "fake-registry.ml", "description": "Fake package registry for skill poisoning", "severity": "high", "source": "skillledger-research", "reported_at": "2026-01-30"},
+  {"domain": "plugin-backdoor.ga", "description": "Backdoored plugin distribution", "severity": "critical", "source": "skillledger-research", "reported_at": "2026-03-25"},
+  {"domain": "api-impersonation.top", "description": "API impersonation for credential capture", "severity": "high", "source": "skillledger-research", "reported_at": "2026-02-05"},
+  {"domain": "dns-tunnel-c2.cf", "description": "DNS tunneling C2 infrastructure", "severity": "critical", "source": "skillledger-research", "reported_at": "2026-03-12"},
+  {"domain": "data-leak.xyz", "description": "Data leak collection endpoint", "severity": "high", "source": "skillledger-research", "reported_at": "2026-02-28"}
+]

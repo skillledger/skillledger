@@ -18,6 +18,12 @@ __all__ = ["load_ee_routers", "validate_license_key"]
 def load_ee_routers(app: FastAPI) -> None:
     """Register all enterprise edition routers on *app*."""
     from skillledger_service.ee.routers.orgs import router as orgs_router
+    from skillledger_service.ee.routers.policy import router as policy_router
+    from skillledger_service.ee.routers.events import router as events_router
+    from skillledger_service.ee.routers.profiles import router as profiles_router
 
     app.include_router(orgs_router)
+    app.include_router(policy_router)
+    app.include_router(events_router)
+    app.include_router(profiles_router)
     logger.info("Enterprise edition routers loaded")

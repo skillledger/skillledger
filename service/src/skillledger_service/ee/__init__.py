@@ -22,10 +22,12 @@ def load_ee_routers(app: FastAPI) -> None:
     from skillledger_service.ee.routers.events import router as events_router
     from skillledger_service.ee.routers.profiles import router as profiles_router
     from skillledger_service.ee.routers.billing_seats import router as billing_seats_router
+    from skillledger_service.ee.routers.saml import router as saml_router
 
     app.include_router(orgs_router)
     app.include_router(policy_router)
     app.include_router(events_router)
     app.include_router(profiles_router)
     app.include_router(billing_seats_router)
+    app.include_router(saml_router)
     logger.info("Enterprise edition routers loaded")

@@ -548,3 +548,249 @@ def test_first_invite_creates_seat_record(mock_get_stripe):
         seat_after = _get_seat_for_org(org_data["id"])
         assert seat_after is not None
         assert seat_after["seat_count"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Task 2: Billing info endpoint, subscribe endpoint, webhook reconciliation
+# ---------------------------------------------------------------------------
+
+
+def _create_seat_record(org_id: int, seat_count: int = 0, stripe_sub_id=None,
+                         stripe_cust_id=None, out_of_sync: bool = False):
+    """Directly create a Seat record for an org."""
+    holder: dict = {}
+
+    async def _create():
+        factory = get_async_session_factory()
+        async with factory() as session:
+            seat = Seat(
+                org_id=org_id,
+                seat_count=seat_count,
+                stripe_subscription_id=stripe_sub_id,
+                stripe_customer_id=stripe_cust_id,
+                out_of_sync=out_of_sync,
+            )
+            session.add(seat)
+            await session.commit()
+            await session.refresh(seat)
+            holder["seat"] = seat
+
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(_create())
+    loop.close()
+    return holder["seat"]
+
+
+@patch("skillledger_service.ee.seat_billing.get_stripe_client")
+@patch("skillledger_service.ee.routers.billing_seats.get_stripe_client")
+def test_get_billing_info(mock_billing_stripe, mock_seat_stripe):
+    """GET /ee/v1/orgs/{slug}/billing returns seat_count, subscription_status, portal_url (D-08)."""
+    mock_client = _make_mock_stripe()
+    # Mock subscription retrieve to return status
+    mock_sub_obj = MagicMock()
+    mock_sub_obj.status = "active"
+    mock_client.subscriptions.retrieve.return_value = mock_sub_obj
+    # Mock portal session
+    mock_portal = MagicMock()
+    mock_portal.url = "https://billing.stripe.com/session/test"
+    mock_client.billing_portal.sessions.create.return_value = mock_portal
+
+    mock_billing_stripe.return_value = mock_client
+    mock_seat_stripe.return_value = mock_client
+
+    app = _make_licensed_app()
+    with TestClient(app) as client:
+        owner = _create_user("billing-owner@example.com")
+        resp = client.post("/ee/v1/orgs", json={"name": "Billing Org"}, headers=owner["headers"])
+        assert resp.status_code == 200
+        org_data = resp.json()
+
+        # Create seat with subscription
+        _create_seat_record(
+            org_data["id"], seat_count=5,
+            stripe_sub_id="sub_billing_test",
+            stripe_cust_id="cus_billing_test",
+        )
+
+        resp = client.get(f"/ee/v1/orgs/{org_data['slug']}/billing", headers=owner["headers"])
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["seat_count"] == 5
+        assert data["subscription_status"] == "active"
+        assert data["portal_url"] == "https://billing.stripe.com/session/test"
+        assert data["out_of_sync"] is False
+
+
+@patch("skillledger_service.ee.seat_billing.get_stripe_client")
+@patch("skillledger_service.ee.routers.billing_seats.get_stripe_client")
+def test_get_billing_no_subscription(mock_billing_stripe, mock_seat_stripe):
+    """GET /ee/v1/orgs/{slug}/billing returns null subscription_status when no subscription."""
+    mock_client = _make_mock_stripe()
+    mock_billing_stripe.return_value = mock_client
+    mock_seat_stripe.return_value = mock_client
+
+    app = _make_licensed_app()
+    with TestClient(app) as client:
+        owner = _create_user("billing-nosub@example.com")
+        resp = client.post("/ee/v1/orgs", json={"name": "No Sub Org"}, headers=owner["headers"])
+        assert resp.status_code == 200
+        org_data = resp.json()
+
+        resp = client.get(f"/ee/v1/orgs/{org_data['slug']}/billing", headers=owner["headers"])
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["seat_count"] == 0
+        assert data["subscription_status"] is None
+        assert data["portal_url"] is None
+
+
+@patch("skillledger_service.ee.seat_billing.get_stripe_client")
+@patch("skillledger_service.ee.routers.billing_seats.get_stripe_client")
+def test_subscribe_endpoint(mock_billing_stripe, mock_seat_stripe):
+    """POST /ee/v1/orgs/{slug}/billing/subscribe creates a Stripe subscription (D-03)."""
+    mock_client = _make_mock_stripe()
+    mock_billing_stripe.return_value = mock_client
+    mock_seat_stripe.return_value = mock_client
+
+    app = _make_licensed_app()
+    with TestClient(app) as client:
+        owner = _create_user("subscribe-owner@example.com")
+        resp = client.post("/ee/v1/orgs", json={"name": "Sub Org"}, headers=owner["headers"])
+        assert resp.status_code == 200
+        org_data = resp.json()
+
+        resp = client.post(
+            f"/ee/v1/orgs/{org_data['slug']}/billing/subscribe",
+            headers=owner["headers"],
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "subscription_id" in data
+        assert "seat_count" in data
+
+
+@patch("skillledger_service.ee.seat_billing.get_stripe_client")
+@patch("skillledger_service.ee.routers.billing_seats.get_stripe_client")
+def test_billing_requires_membership(mock_billing_stripe, mock_seat_stripe):
+    """GET /ee/v1/orgs/{slug}/billing requires viewer+ role (T-26-05)."""
+    mock_client = _make_mock_stripe()
+    mock_billing_stripe.return_value = mock_client
+    mock_seat_stripe.return_value = mock_client
+
+    app = _make_licensed_app()
+    with TestClient(app) as client:
+        owner = _create_user("billing-req-owner@example.com")
+        non_member = _create_user("billing-nonmember@example.com")
+
+        resp = client.post("/ee/v1/orgs", json={"name": "Req Org"}, headers=owner["headers"])
+        assert resp.status_code == 200
+        org_data = resp.json()
+
+        # Non-member should get 403
+        resp = client.get(
+            f"/ee/v1/orgs/{org_data['slug']}/billing",
+            headers=non_member["headers"],
+        )
+        assert resp.status_code == 403
+
+
+@patch("skillledger_service.ee.seat_billing.get_stripe_client")
+def test_webhook_seat_reconciliation(mock_get_stripe):
+    """Webhook customer.subscription.updated reconciles seat count from Stripe quantity."""
+    mock_client = _make_mock_stripe()
+    mock_get_stripe.return_value = mock_client
+
+    app = _make_licensed_app()
+    with TestClient(app) as client:
+        owner = _create_user("webhook-owner@example.com")
+        resp = client.post("/ee/v1/orgs", json={"name": "Webhook Org"}, headers=owner["headers"])
+        assert resp.status_code == 200
+        org_data = resp.json()
+
+        # Create seat with subscription
+        _create_seat_record(
+            org_data["id"], seat_count=3,
+            stripe_sub_id="sub_webhook_test",
+            stripe_cust_id="cus_webhook_test",
+            out_of_sync=True,
+        )
+
+        # Simulate Stripe webhook
+        webhook_payload = {
+            "id": "evt_seat_reconcile",
+            "type": "customer.subscription.updated",
+            "data": {
+                "object": {
+                    "id": "sub_webhook_test",
+                    "status": "active",
+                    "items": {
+                        "data": [{"quantity": 7}]
+                    },
+                }
+            },
+        }
+
+        # Patch Stripe signature verification
+        with patch("skillledger_service.routers.webhooks.stripe.Webhook.construct_event",
+                    return_value=webhook_payload):
+            resp = client.post(
+                "/v1/webhooks/stripe",
+                json=webhook_payload,
+                headers={"stripe-signature": "test_sig"},
+            )
+            assert resp.status_code == 200
+
+        # Verify seat count was reconciled
+        seat = _get_seat_for_org(org_data["id"])
+        assert seat is not None
+        assert seat["seat_count"] == 7
+        assert seat["out_of_sync"] is False
+
+
+@patch("skillledger_service.ee.seat_billing.get_stripe_client")
+def test_webhook_reconciliation_clears_out_of_sync(mock_get_stripe):
+    """Webhook reconciliation clears out_of_sync flag."""
+    mock_client = _make_mock_stripe()
+    mock_get_stripe.return_value = mock_client
+
+    app = _make_licensed_app()
+    with TestClient(app) as client:
+        owner = _create_user("sync-owner@example.com")
+        resp = client.post("/ee/v1/orgs", json={"name": "Sync Org"}, headers=owner["headers"])
+        assert resp.status_code == 200
+        org_data = resp.json()
+
+        # Create seat that is out of sync
+        _create_seat_record(
+            org_data["id"], seat_count=2,
+            stripe_sub_id="sub_sync_test",
+            stripe_cust_id="cus_sync_test",
+            out_of_sync=True,
+        )
+
+        webhook_payload = {
+            "id": "evt_sync_clear",
+            "type": "customer.subscription.updated",
+            "data": {
+                "object": {
+                    "id": "sub_sync_test",
+                    "status": "active",
+                    "items": {
+                        "data": [{"quantity": 2}]
+                    },
+                }
+            },
+        }
+
+        with patch("skillledger_service.routers.webhooks.stripe.Webhook.construct_event",
+                    return_value=webhook_payload):
+            resp = client.post(
+                "/v1/webhooks/stripe",
+                json=webhook_payload,
+                headers={"stripe-signature": "test_sig"},
+            )
+            assert resp.status_code == 200
+
+        seat = _get_seat_for_org(org_data["id"])
+        assert seat is not None
+        assert seat["out_of_sync"] is False

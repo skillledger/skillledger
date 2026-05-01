@@ -185,6 +185,7 @@ async def jit_provision(
         )
     ).scalar_one_or_none()
 
+    created_membership = False
     if membership is None:
         # Determine role from attributes (validate against OrgRole enum)
         role = default_role
@@ -212,9 +213,12 @@ async def jit_provision(
 
         membership = OrgMembership(user_id=user.id, org_id=org.id, role=role)
         session.add(membership)
-        await session.flush()
+        await session.commit()
+        await session.refresh(user)
+        created_membership = True
 
-        # Fire-and-forget seat count sync (same pattern as accept_invite in orgs.py)
+    # Fire-and-forget seat count sync after new membership (same pattern as accept_invite)
+    if created_membership:
         try:
             from skillledger_service.ee.seat_billing import (
                 get_or_create_seat,

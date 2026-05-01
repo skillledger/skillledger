@@ -52,6 +52,22 @@ def create_app() -> FastAPI:
     app.include_router(usage_router)
     app.include_router(billing_router)
     app.include_router(webhooks_router)
+
+    # Conditionally load enterprise edition routers
+    settings = get_settings()
+    if settings.ee_license_key:
+        from skillledger_service.ee.license import validate_license_key
+
+        if validate_license_key(settings.ee_license_key, settings.ee_license_hash):
+            from skillledger_service.ee import load_ee_routers
+
+            load_ee_routers(app)
+            logger.info("Enterprise features enabled")
+        else:
+            logger.warning(
+                "SKILLLEDGER_EE_LICENSE_KEY is set but invalid -- ee/ routes NOT loaded"
+            )
+
     return app
 
 

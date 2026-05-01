@@ -13,6 +13,7 @@ dependencies = [
     "httpx",
     "PyJWT>=2.12",
     "resend>=2.29",
+    "stripe>=15.0",
 ]
 
 [project.optional-dependencies]

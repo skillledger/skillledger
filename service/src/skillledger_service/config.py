@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
     stripe_price_id: str = ""
+    stripe_seat_price_id: str = ""
     stripe_meter_event_name: str = "tlog_publish"
     service_url: str = "https://log.skillledger.dev"
     ee_license_key: str = ""

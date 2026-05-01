@@ -3,7 +3,7 @@ import enum
 import re
 from typing import Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from skillledger_service.models.artifact import Base
@@ -99,3 +99,30 @@ class OrgInvite(Base):
     )
 
     organization: Mapped["Organization"] = relationship(back_populates="invites")
+
+
+class Seat(Base):
+    __tablename__ = "seats"
+    __table_args__ = (
+        UniqueConstraint("org_id", name="uq_seats_org_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("organizations.id"), nullable=False, unique=True
+    )
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
+    seat_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    out_of_sync: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+    )
+    updated_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

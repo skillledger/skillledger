@@ -6,6 +6,7 @@ from skillledger_service.models.organization import (
     OrgInvite,
     OrgMembership,
     OrgRole,
+    Seat,
 )
 from skillledger_service.models.publisher import APIKey, Publisher
 from skillledger_service.models.threat import IocDomain, IocHash, YaraRule
@@ -22,6 +23,7 @@ __all__ = [
     "OrgInvite",
     "OrgRole",
     "ROLE_HIERARCHY",
+    "Seat",
     "OrgEvent",
     "OrgProfile",
     "OrgPolicy",

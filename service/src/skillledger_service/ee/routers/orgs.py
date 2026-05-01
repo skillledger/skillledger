@@ -329,7 +329,11 @@ async def accept_invite(
         raise HTTPException(400, "Already accepted")
 
     now = datetime.datetime.now(datetime.timezone.utc)
-    if invite.expires_at <= now:
+    expires = invite.expires_at
+    # Normalize naive datetimes (e.g. from SQLite) to UTC
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=datetime.timezone.utc)
+    if expires <= now:
         raise HTTPException(400, "Invite expired")
 
     if user.email != invite.email:

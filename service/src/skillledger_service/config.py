@@ -18,4 +18,6 @@ class Settings(BaseSettings):
     stripe_price_id: str = ""
     stripe_meter_event_name: str = "tlog_publish"
     service_url: str = "https://log.skillledger.dev"
+    ee_license_key: str = ""
+    ee_license_hash: str = ""
     model_config = {"env_prefix": "SKILLLEDGER_"}

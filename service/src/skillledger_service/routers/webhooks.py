@@ -128,11 +128,12 @@ async def _handle_checkout_completed(
 async def _handle_subscription_updated(
     session: AsyncSession, data: dict, now: datetime.datetime
 ) -> None:
-    """Update subscription status on change."""
+    """Update subscription status on change, including seat reconciliation."""
     sub_id = data.get("id")
     if not sub_id:
         return
 
+    # Individual subscription update
     stmt = select(Subscription).where(
         Subscription.stripe_subscription_id == sub_id
     )
@@ -150,6 +151,30 @@ async def _handle_subscription_updated(
             sub.current_period_end = datetime.datetime.fromtimestamp(
                 data["current_period_end"], tz=datetime.timezone.utc
             )
+
+    # Seat subscription reconciliation
+    from skillledger_service.models.organization import Seat
+
+    seat_stmt = select(Seat).where(Seat.stripe_subscription_id == sub_id)
+    seat_result = await session.execute(seat_stmt)
+    seat = seat_result.scalar_one_or_none()
+
+    if seat is not None:
+        # Extract quantity from subscription items
+        items_data = data.get("items", {})
+        if isinstance(items_data, dict):
+            items_list = items_data.get("data", [])
+        else:
+            items_list = []
+
+        if items_list:
+            stripe_quantity = items_list[0].get("quantity", seat.seat_count)
+        else:
+            stripe_quantity = seat.seat_count
+
+        from skillledger_service.ee.seat_billing import reconcile_seat_from_webhook
+
+        await reconcile_seat_from_webhook(session, sub_id, stripe_quantity)
 
 
 async def _handle_subscription_deleted(

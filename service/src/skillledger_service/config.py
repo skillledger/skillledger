@@ -21,4 +21,5 @@ class Settings(BaseSettings):
     service_url: str = "https://log.skillledger.dev"
     ee_license_key: str = ""
     ee_license_hash: str = ""
+    saml_sp_entity_id: str = ""
     model_config = {"env_prefix": "SKILLLEDGER_"}

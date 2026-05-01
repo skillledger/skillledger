@@ -13,4 +13,8 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     otp_from_email: str = "SkillLedger <noreply@skillledger.dev>"
     cors_origins: list[str] = ["https://log.skillledger.dev"]
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_id: str = ""
+    stripe_meter_event_name: str = "tlog_publish"
     model_config = {"env_prefix": "SKILLLEDGER_"}

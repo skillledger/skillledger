@@ -13,7 +13,7 @@ from typing import Optional
 import resend
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from skillledger_service.db import get_session, get_settings
@@ -359,6 +359,34 @@ async def accept_invite(
     await session.commit()
     await session.refresh(membership)
 
+    # Seat tracking: sync member count with Stripe (fire-and-forget, D-04/D-07)
+    try:
+        from skillledger_service.ee.seat_billing import get_or_create_seat, update_seat_count
+
+        count_result = await session.execute(
+            select(func.count())
+            .select_from(OrgMembership)
+            .where(OrgMembership.org_id == invite.org_id)
+        )
+        member_count = count_result.scalar_one()
+
+        org = (
+            await session.execute(
+                select(Organization).where(Organization.id == invite.org_id)
+            )
+        ).scalar_one()
+
+        seat = await get_or_create_seat(session, org)
+        await update_seat_count(session, seat, member_count)
+        await session.commit()
+    except Exception:
+        logger.warning(
+            "Seat tracking failed after invite accept for org %s (fire-and-forget)",
+            invite.org_id,
+            exc_info=True,
+        )
+        await session.rollback()
+
     return MemberResponse(
         user_id=membership.user_id,
         email=user.email,
@@ -394,6 +422,28 @@ async def remove_member(
 
     await session.delete(target)
     await session.commit()
+
+    # Seat tracking: sync member count with Stripe (fire-and-forget, D-04/D-07)
+    try:
+        from skillledger_service.ee.seat_billing import get_or_create_seat, update_seat_count
+
+        count_result = await session.execute(
+            select(func.count())
+            .select_from(OrgMembership)
+            .where(OrgMembership.org_id == org.id)
+        )
+        member_count = count_result.scalar_one()
+
+        seat = await get_or_create_seat(session, org)
+        await update_seat_count(session, seat, member_count)
+        await session.commit()
+    except Exception:
+        logger.warning(
+            "Seat tracking failed after member remove for org %s (fire-and-forget)",
+            org.id,
+            exc_info=True,
+        )
+        await session.rollback()
 
 
 @router.post("/orgs/{slug}/transfer")

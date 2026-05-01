@@ -3,9 +3,13 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/skillledger/skillledger/internal/credentials"
+	"github.com/skillledger/skillledger/internal/eventreport"
+	"github.com/skillledger/skillledger/internal/orgsync"
 	"github.com/skillledger/skillledger/internal/threatsync"
 	"github.com/skillledger/skillledger/internal/updatecheck"
 	"github.com/spf13/afero"
@@ -14,11 +18,14 @@ import (
 )
 
 var (
-	verbose       bool
-	jsonOutput    bool
-	noUpdateCheck bool
-	updateCheckCh <-chan *updatecheck.Result
-	threatSyncer  *threatsync.Syncer
+	verbose        bool
+	jsonOutput     bool
+	noUpdateCheck  bool
+	updateCheckCh  <-chan *updatecheck.Result
+	threatSyncer   *threatsync.Syncer
+	orgSyncer      *orgsync.OrgSyncer
+	eventReporter  *eventreport.Reporter
+	currentOrgSlug string
 )
 
 // threatCacheDir returns the path to the threat data cache directory.
@@ -29,6 +36,16 @@ func threatCacheDir() string {
 		home = os.Getenv("HOME")
 	}
 	return filepath.Join(home, ".skillledger", "cache")
+}
+
+// orgCacheDir returns the path to the org policy cache directory.
+// Uses $HOME/.skillledger (org policy cached at ~/.skillledger/org-policy.rego per D-04).
+func orgCacheDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.Getenv("HOME")
+	}
+	return filepath.Join(home, ".skillledger")
 }
 
 var rootCmd = &cobra.Command{
@@ -56,8 +73,22 @@ artifacts at install time against a transparency log and capability policy.`,
 		}
 		threatSyncer = threatsync.NewSyncer(serviceURL, threatCacheDir())
 		threatSyncer.StartAsync()
+
+		// Start org policy sync if user belongs to an org (D-12)
+		creds, credErr := credentials.Load()
+		if credErr == nil && creds.OrgSlug != "" {
+			currentOrgSlug = creds.OrgSlug
+			orgSyncer = orgsync.NewOrgSyncer(serviceURL, orgCacheDir(), creds.OrgSlug)
+			orgSyncer.StartAsync()
+			eventReporter = eventreport.NewReporter(serviceURL)
+		}
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		// Wait briefly for event reporting to complete (Pitfall 5)
+		if eventReporter != nil {
+			eventReporter.WaitForReport(2 * time.Second)
+		}
+
 		// Print update notice if available (D-14)
 		// Only if stderr is a TTY (D-15: don't pollute machine-readable output)
 		if updateCheckCh == nil {

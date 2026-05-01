@@ -1,9 +1,13 @@
 FROM python:3.12-slim AS builder
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    xmlsec1 libxmlsec1-dev pkg-config gcc libxml2-dev \
+    && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir .
 
 FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends xmlsec1 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin/uvicorn /usr/local/bin/uvicorn

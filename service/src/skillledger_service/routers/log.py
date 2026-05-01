@@ -11,7 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from skillledger_service.db import get_session, get_settings
 from skillledger_service.models.artifact import LogEntryRecord
 from skillledger_service.models.publisher import Publisher
+from skillledger_service.models.usage import Subscription
 from skillledger_service.models.user import User
+from skillledger_service.stripe_client import get_stripe_client
 from skillledger_service.usage import (
     FREE_TIER_PUBLISH_LIMIT,
     _next_month_reset,
@@ -119,12 +121,45 @@ async def publish_entry(
         month = datetime.now(timezone.utc).strftime("%Y-%m")
         new_count = await increment_usage(session, identity.id, "tlog_publish", month)
         await session.commit()
-        resets_at = _next_month_reset(datetime.now(timezone.utc))
-        response.headers["X-RateLimit-Limit"] = str(FREE_TIER_PUBLISH_LIMIT)
-        response.headers["X-RateLimit-Remaining"] = str(
-            max(0, FREE_TIER_PUBLISH_LIMIT - new_count)
+
+        # Check subscription status for rate limit headers and meter events
+        sub_stmt = select(Subscription).where(
+            Subscription.user_id == identity.id,
+            Subscription.status == "active",
         )
-        response.headers["X-RateLimit-Reset"] = resets_at.isoformat()
+        sub_result = await session.execute(sub_stmt)
+        subscription = sub_result.scalar_one_or_none()
+
+        if subscription and subscription.status == "active":
+            # Paid user: no rate limit headers (Pitfall 5)
+            # Send Stripe meter event (D-10, fire-and-forget)
+            if subscription.stripe_customer_id:
+                try:
+                    stripe_client = get_stripe_client()
+                    settings = get_settings()
+                    stripe_client.billing.meter_events.create(
+                        params={
+                            "event_name": settings.stripe_meter_event_name,
+                            "payload": {
+                                "stripe_customer_id": subscription.stripe_customer_id,
+                                "value": "1",
+                            },
+                        }
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to send Stripe meter event",
+                        extra={"user_id": identity.id},
+                        exc_info=True,
+                    )
+        else:
+            # Free user: include rate limit headers
+            resets_at = _next_month_reset(datetime.now(timezone.utc))
+            response.headers["X-RateLimit-Limit"] = str(FREE_TIER_PUBLISH_LIMIT)
+            response.headers["X-RateLimit-Remaining"] = str(
+                max(0, FREE_TIER_PUBLISH_LIMIT - new_count)
+            )
+            response.headers["X-RateLimit-Reset"] = resets_at.isoformat()
 
     return PublishResponse(log_index=log_index, artifact_id=entry.artifact_id)
 

@@ -1,12 +1,15 @@
 """Usage information endpoint for authenticated users."""
 
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from skillledger_service.db import get_session
+from skillledger_service.models.usage import Subscription
 from skillledger_service.models.user import User
 from skillledger_service.usage import (
     FREE_TIER_PUBLISH_LIMIT,
@@ -21,8 +24,9 @@ router = APIRouter(prefix="/v1", tags=["usage"])
 class UsageResponse(BaseModel):
     operation: str
     used: int
-    limit: int
+    limit: Optional[int] = None
     resets_at: str
+    billing_status: str
 
 
 @router.get("/usage", response_model=UsageResponse)
@@ -36,9 +40,25 @@ async def get_usage(
     used = await get_usage_count(session, user.id, "tlog_publish", month)
     resets_at = _next_month_reset(now)
 
+    # Determine billing status from subscription
+    sub_stmt = select(Subscription).where(Subscription.user_id == user.id)
+    sub_result = await session.execute(sub_stmt)
+    subscription = sub_result.scalar_one_or_none()
+
+    if subscription and subscription.status == "active":
+        billing_status = "active"
+        limit = None  # unlimited
+    elif subscription and subscription.status in ("past_due", "canceled"):
+        billing_status = subscription.status
+        limit = FREE_TIER_PUBLISH_LIMIT
+    else:
+        billing_status = "free"
+        limit = FREE_TIER_PUBLISH_LIMIT
+
     return UsageResponse(
         operation="tlog_publish",
         used=used,
-        limit=FREE_TIER_PUBLISH_LIMIT,
+        limit=limit,
         resets_at=resets_at.isoformat(),
+        billing_status=billing_status,
     )

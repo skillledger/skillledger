@@ -20,6 +20,7 @@ from skillledger_service.db import get_session, get_settings
 from skillledger_service.models.publisher import Publisher
 from skillledger_service.models.usage import Subscription, UsageRecord
 from skillledger_service.models.user import User
+from skillledger_service.stripe_client import get_stripe_client
 from skillledger_service.user_auth import get_current_identity
 
 logger = logging.getLogger(__name__)
@@ -120,11 +121,9 @@ async def check_tlog_limit(
         # Generate Stripe Checkout URL (D-03)
         checkout_url = None
         try:
-            from skillledger_service.stripe_client import get_stripe_client
-
             client = get_stripe_client()
             settings = get_settings()
-            checkout_session = client.checkout.sessions.create(
+            checkout_session = client.v1.checkout.sessions.create(
                 params={
                     "mode": "subscription",
                     "customer_email": identity.email,

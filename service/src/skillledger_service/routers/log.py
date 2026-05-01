@@ -137,7 +137,7 @@ async def publish_entry(
                 try:
                     stripe_client = get_stripe_client()
                     settings = get_settings()
-                    stripe_client.billing.meter_events.create(
+                    stripe_client.v1.billing.meter_events.create(
                         params={
                             "event_name": settings.stripe_meter_event_name,
                             "payload": {

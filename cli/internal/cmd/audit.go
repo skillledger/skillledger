@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/skillledger/skillledger/internal/ecosystem"
+	"github.com/skillledger/skillledger/internal/eventreport"
 	"github.com/skillledger/skillledger/internal/ioc"
 	"github.com/skillledger/skillledger/internal/report"
 	"github.com/skillledger/skillledger/internal/sbom"
@@ -193,6 +194,61 @@ func runAudit(cmd *cobra.Command, args []string) error {
 
 	if outFile != nil {
 		fmt.Fprintf(os.Stderr, "Results written to %s\n", outputFile)
+	}
+
+	// Report violations and auto-profiles to org service (D-13, D-14)
+	if eventReporter != nil && currentOrgSlug != "" {
+		var events []eventreport.Event
+		for _, r := range results {
+			// IOC matches become violation events
+			if r.IOCMatch != nil {
+				events = append(events, eventreport.Event{
+					Type:      "violation",
+					Ecosystem: r.Skill.Kind,
+					SkillID:   r.Skill.Name,
+					Rule:      "ioc-match",
+					Severity:  r.IOCMatch.Severity,
+					Details: map[string]interface{}{
+						"description": r.IOCMatch.Description,
+						"sha256":      r.IOCMatch.SHA256,
+						"path":        r.Skill.Path,
+					},
+					Timestamp: time.Now(),
+				})
+			}
+			// YARA matches become warning events
+			for _, ym := range r.YARAMatches {
+				severity := ym.Severity
+				if severity == "" {
+					severity = "medium"
+				}
+				events = append(events, eventreport.Event{
+					Type:      "warning",
+					Ecosystem: r.Skill.Kind,
+					SkillID:   r.Skill.Name,
+					Rule:      ym.RuleName,
+					Severity:  severity,
+					Details: map[string]interface{}{
+						"tags": ym.Tags,
+						"path": r.Skill.Path,
+					},
+					Timestamp: time.Now(),
+				})
+			}
+			// Auto-profile: report capability profiles for all discovered skills
+			if r.Status != "compromised" {
+				eventReporter.ReportProfileAsync(eventreport.Profile{
+					OrgSlug:      currentOrgSlug,
+					SkillID:      r.Skill.Name,
+					Ecosystem:    r.Skill.Kind,
+					Capabilities: []string{}, // capability extraction is ecosystem-dependent
+					DetectedAt:   time.Now(),
+				})
+			}
+		}
+		if len(events) > 0 {
+			eventReporter.ReportEventsAsync(currentOrgSlug, events)
+		}
 	}
 
 	return nil

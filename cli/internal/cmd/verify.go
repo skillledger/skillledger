@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
+	"github.com/skillledger/skillledger/internal/eventreport"
 	"github.com/skillledger/skillledger/internal/output"
 	"github.com/skillledger/skillledger/internal/policy"
 	"github.com/skillledger/skillledger/internal/signer"
@@ -109,6 +110,21 @@ func runVerify(cmd *cobra.Command, args []string) error {
 		policyEval = evaluator
 	}
 
+	// Apply org policy if available (D-02: org policy overrides local)
+	if orgSyncer != nil {
+		orgSyncer.WaitForSync(2 * time.Second)
+		orgPolicyPath := orgSyncer.CachedPolicyPath()
+		if _, statErr := os.Stat(orgPolicyPath); statErr == nil {
+			orgEval, loadErr := policy.LoadPolicyFile(orgPolicyPath)
+			if loadErr != nil {
+				log.Warn().Err(loadErr).Msg("org policy compile failed, using local policy")
+			} else {
+				policyEval = orgEval // org policy overrides local (per A2: override semantics)
+				log.Info().Str("policy", orgPolicyPath).Msg("using org policy")
+			}
+		}
+	}
+
 	// Create verify pipeline
 	pipeline := verify.NewPipeline(sigVerifier, tlogClient, policyEval, verify.WithSkipTlog(skipTlog))
 
@@ -151,6 +167,23 @@ func runVerify(cmd *cobra.Command, args []string) error {
 	// Print result (T-07-09: only structured step-level errors, no stack traces)
 	if err := output.PrintVerifyResult(os.Stdout, checkResult, jsonOutput); err != nil {
 		return err
+	}
+
+	// Report violations to org service (D-13: fire-and-forget)
+	if eventReporter != nil && currentOrgSlug != "" && len(result.Violations) > 0 {
+		events := make([]eventreport.Event, 0, len(result.Violations))
+		for _, v := range result.Violations {
+			events = append(events, eventreport.Event{
+				Type:      "violation",
+				Ecosystem: "unknown", // verify doesn't have ecosystem context
+				SkillID:   absArtifact,
+				Rule:      v,
+				Severity:  "high",
+				Details:   map[string]interface{}{"message": v},
+				Timestamp: time.Now(),
+			})
+		}
+		eventReporter.ReportEventsAsync(currentOrgSlug, events)
 	}
 
 	// T-07-10: fail-closed -- verification failure always returns non-zero exit code

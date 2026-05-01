@@ -62,6 +62,21 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("proxy already running (PID %d)", pid)
 	}
 
+	// Apply org policy if available (D-12: org policy overrides local for proxy)
+	if orgSyncer != nil {
+		orgSyncer.WaitForSync(2 * time.Second)
+		orgPolicyPath := orgSyncer.CachedPolicyPath()
+		if _, statErr := os.Stat(orgPolicyPath); statErr == nil {
+			if policyFile == "" {
+				policyFile = orgPolicyPath
+				log.Info().Str("policy", orgPolicyPath).Msg("using org policy for proxy")
+			} else {
+				log.Info().Str("org_policy", orgPolicyPath).Str("local_policy", policyFile).Msg("org policy overrides local policy for proxy")
+				policyFile = orgPolicyPath
+			}
+		}
+	}
+
 	// Build layered policy config: defaults < user config < project config < CLI flags.
 	config := proxy.DefaultPolicyConfig()
 
@@ -192,6 +207,12 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 	defer stop()
 
 	err := server.Start(ctx)
+
+	// Flush accumulated violation events to org service on shutdown (D-13)
+	if eventReporter != nil && currentOrgSlug != "" {
+		log.Debug().Msg("proxy shutdown: waiting for event report flush")
+		eventReporter.WaitForReport(2 * time.Second)
+	}
 
 	// Generate SARIF report on shutdown if requested.
 	if sarifOnShutdown != "" {

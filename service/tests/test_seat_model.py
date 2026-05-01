@@ -77,9 +77,14 @@ def test_seat_model_unique_org_id():
 
 def test_settings_stripe_seat_price_id():
     """Test 3: Settings.stripe_seat_price_id is accessible and defaults to empty string."""
-    s = Settings()
-    assert hasattr(s, "stripe_seat_price_id")
-    assert s.stripe_seat_price_id == ""
+    old_val = os.environ.pop("SKILLLEDGER_STRIPE_SEAT_PRICE_ID", None)
+    try:
+        s = Settings()
+        assert hasattr(s, "stripe_seat_price_id")
+        assert s.stripe_seat_price_id == ""
+    finally:
+        if old_val is not None:
+            os.environ["SKILLLEDGER_STRIPE_SEAT_PRICE_ID"] = old_val
 
 
 def test_seat_importable_from_models():

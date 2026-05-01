@@ -17,4 +17,5 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = ""
     stripe_price_id: str = ""
     stripe_meter_event_name: str = "tlog_publish"
+    service_url: str = "https://log.skillledger.dev"
     model_config = {"env_prefix": "SKILLLEDGER_"}

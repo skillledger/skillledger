@@ -9,6 +9,7 @@ from skillledger_service.models.organization import (
     Seat,
 )
 from skillledger_service.models.publisher import APIKey, Publisher
+from skillledger_service.models.saml_config import SamlConfig
 from skillledger_service.models.threat import IocDomain, IocHash, YaraRule
 from skillledger_service.models.usage import StripeEvent, Subscription, UsageRecord
 from skillledger_service.models.user import OtpCode, RefreshToken, User, UserApiKey
@@ -37,4 +38,5 @@ __all__ = [
     "UsageRecord",
     "Subscription",
     "StripeEvent",
+    "SamlConfig",
 ]

@@ -1,4 +1,5 @@
 from skillledger_service.models.artifact import Base, LogEntryRecord
+from skillledger_service.models.org_event import OrgEvent, OrgPolicy, OrgProfile
 from skillledger_service.models.organization import (
     ROLE_HIERARCHY,
     Organization,
@@ -21,6 +22,9 @@ __all__ = [
     "OrgInvite",
     "OrgRole",
     "ROLE_HIERARCHY",
+    "OrgEvent",
+    "OrgProfile",
+    "OrgPolicy",
     "User",
     "RefreshToken",
     "UserApiKey",

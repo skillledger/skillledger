@@ -147,6 +147,13 @@ skillledger publish          │  2. Provenance│
 - Fail-closed verification (deny by default)
 - Hook scripts use `set -euo pipefail`
 
+### Frontend / Dashboard Code
+- **MANDATORY: Use the `design` skill** (`.claude/skills/design/SKILL.md`) whenever creating or modifying ANY frontend file (.tsx, .jsx, .css, .html, page layouts, UI components, styling)
+- The design skill requires: `<design_plan>` block before writing UI code, GSAP animations, AIDA page structure for full pages, proper typography selection, and accessibility compliance
+- Dashboard stack: Next.js 15 + React 19 + TypeScript + Tailwind CSS v4 + shadcn/ui + TanStack Query
+- All API calls go through the generated TypeScript client (never direct PostgreSQL)
+- Auth via Auth.js v5 with JWT session strategy
+
 ### Testing
 - Go: `go test ./...` from `cli/` directory
 - Python: `python3 -m pytest tests/ -v` from `service/` directory

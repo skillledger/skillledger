@@ -33,7 +33,7 @@ router = APIRouter(prefix="/ee/v1", tags=["enterprise"])
 
 class SetPolicyRequest(BaseModel):
     rego: str
-    deploy: bool = False
+    deploy: bool = True
 
 
 class PolicyResponse(BaseModel):

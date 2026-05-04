@@ -33,6 +33,7 @@ router = APIRouter(prefix="/ee/v1", tags=["enterprise"])
 
 class SetPolicyRequest(BaseModel):
     rego: str
+    deploy: bool = False
 
 
 class PolicyResponse(BaseModel):
@@ -69,6 +70,19 @@ async def set_policy(
 
     now = datetime.datetime.now(datetime.timezone.utc)
 
+    # If deploy=False, validate only — return the validated policy without persisting
+    if not body.deploy:
+        return PolicyResponse(
+            id=0,
+            org_id=org.id,
+            rego=body.rego,
+            compiled_at=now,
+            created_by=user.id,
+            created_at=now,
+            updated_at=None,
+        )
+
+    # deploy=True — persist to database (existing behavior below)
     # Upsert: find existing policy for this org
     existing = (
         await session.execute(

@@ -10,3 +10,16 @@
         format json
     }
 }
+
+{$DASHBOARD_DOMAIN:dashboard.skillledger.dev} {
+    reverse_proxy skillledger-dashboard:3000
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+    }
+    log {
+        output stdout
+        format json
+    }
+}

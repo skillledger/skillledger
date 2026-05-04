@@ -5,7 +5,9 @@
 #   - Set SKILLLEDGER_DOMAIN (default: log.skillledger.dev)
 #   - Set SKILLLEDGER_ADMIN_API_KEY for bootstrap publisher creation
 #   - Set POSTGRES_PASSWORD for database security
+#   - Set AUTH_SECRET for dashboard session encryption (openssl rand -base64 32)
 #   - DNS A record pointing SKILLLEDGER_DOMAIN to server IP
+#   - DNS A record pointing DASHBOARD_DOMAIN to server IP (default: dashboard.skillledger.dev)
 
 services:
   caddy:
@@ -20,8 +22,10 @@ services:
       - caddy-config:/config
     depends_on:
       - skillledger-service
+      - skillledger-dashboard
     environment:
       - DOMAIN=${SKILLLEDGER_DOMAIN:-log.skillledger.dev}
+      - DASHBOARD_DOMAIN=${DASHBOARD_DOMAIN:-dashboard.skillledger.dev}
 
   skillledger-service:
     ports:
@@ -34,6 +38,16 @@ services:
   skillledger-log:
     ports:
       - "127.0.0.1:2025:2025"  # Internal only
+
+  skillledger-dashboard:
+    ports:
+      - "127.0.0.1:3000:3000"  # Only accessible via Caddy, not directly
+    environment:
+      - AUTH_SECRET=${AUTH_SECRET:?Set AUTH_SECRET}
+      - AUTH_URL=https://${DASHBOARD_DOMAIN:-dashboard.skillledger.dev}
+      - NEXT_PUBLIC_API_URL=https://${SKILLLEDGER_DOMAIN:-log.skillledger.dev}
+      - API_URL=http://skillledger-service:8000
+      - AUTH_TRUST_HOST=true
 
   postgres:
     environment:

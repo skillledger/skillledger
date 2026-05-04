@@ -51,6 +51,21 @@ services:
       timeout: 3s
       retries: 5
 
+  skillledger-dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - AUTH_SECRET=${AUTH_SECRET:-dev-secret-change-in-prod}
+      - AUTH_URL=http://localhost:3000
+      - NEXT_PUBLIC_API_URL=http://skillledger-service:8000
+      - API_URL=http://skillledger-service:8000
+    depends_on:
+      skillledger-service:
+        condition: service_started
+
 volumes:
   log-data:
   pg-data:

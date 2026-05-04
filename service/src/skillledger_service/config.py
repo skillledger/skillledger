@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     stripe_seat_price_id: str = ""
     stripe_meter_event_name: str = "tlog_publish"
     service_url: str = "https://log.skillledger.dev"
+    dashboard_url: str = "https://dashboard.skillledger.dev"
     ee_license_key: str = ""
     ee_license_hash: str = ""
     saml_sp_entity_id: str = ""

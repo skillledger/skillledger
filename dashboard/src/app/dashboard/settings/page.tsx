@@ -79,7 +79,7 @@ export default function SettingsPage() {
   const [removeError, setRemoveError] = useState("")
 
   const [inviteEmail, setInviteEmail] = useState("")
-  const [inviteRole, setInviteRole] = useState("member")
+  const [inviteRole, setInviteRole] = useState<"owner" | "admin" | "member" | "viewer">("member")
   const [isInviting, setIsInviting] = useState(false)
   const [inviteError, setInviteError] = useState("")
   const [inviteSuccess, setInviteSuccess] = useState("")

@@ -103,7 +103,7 @@ export default function BillingPage() {
   async function handleUpgrade() {
     setCheckoutLoading(true)
     try {
-      const { data } = await fetchClient.POST("/v1/billing/checkout")
+      const { data } = await fetchClient.POST("/v1/billing/checkout") as { data?: { url?: string } }
       if (data?.url) {
         window.location.href = data.url
       }

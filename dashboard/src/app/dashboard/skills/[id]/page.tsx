@@ -29,7 +29,7 @@ function buildProvenanceSteps(
   events: Array<{
     event_type: string
     event_timestamp: string
-    details?: Record<string, unknown>
+    details?: Record<string, unknown> | null
   }>
 ) {
   const findEvent = (keyword: string) =>

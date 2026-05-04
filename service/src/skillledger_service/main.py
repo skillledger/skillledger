@@ -14,6 +14,7 @@ from skillledger_service.routers.ingest import router as ingest_router
 from skillledger_service.routers.threat_library import router as threat_library_router
 from skillledger_service.routers.usage_router import router as usage_router
 from skillledger_service.routers.billing import router as billing_router
+from skillledger_service.routers.me import router as me_router
 from skillledger_service.routers.webhooks import router as webhooks_router
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(ingest_router)
     app.include_router(usage_router)
     app.include_router(billing_router)
+    app.include_router(me_router)
     app.include_router(webhooks_router)
 
     # Conditionally load enterprise edition routers

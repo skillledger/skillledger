@@ -346,7 +346,7 @@ async def saml_acs(
 
     # Redirect with tokens in URL fragment
     callback_url = (
-        f"{settings.service_url}/auth/callback"
+        f"{settings.dashboard_url}/auth/callback"
         f"#access_token={access_token}&refresh_token={refresh_token}"
     )
     return RedirectResponse(url=callback_url, status_code=302)

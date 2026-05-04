@@ -3,20 +3,15 @@ import NextAuth from "next-auth"
 
 declare module "next-auth" {
   interface Session {
-    accessToken?: string
-    refreshToken?: string
+    accessToken: string
     error?: string
   }
 
   interface User {
-    accessToken?: string
-    refreshToken?: string
+    accessToken: string
+    refreshToken: string
   }
-}
 
-// JWT type augmentation for next-auth callbacks
-// The JWT type is re-exported from the main "next-auth" module in v5
-declare module "next-auth" {
   interface JWT {
     accessToken?: string
     refreshToken?: string

@@ -31,6 +31,10 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "SKILLLEDGER_JWT_SECRET is not set. JWT auth will use an insecure default."
         )
+        raise RuntimeError(
+            "SKILLLEDGER_JWT_SECRET must be set in production. "
+            "Set SKILLLEDGER_DEBUG=true for development."
+        )
     eng = get_engine()
     if settings.debug:
         async with eng.begin() as conn:

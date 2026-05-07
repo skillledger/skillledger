@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import hmac
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -160,7 +161,7 @@ async def verify(
     otp.attempts += 1
     code_hash = hash_api_key(req.code)
 
-    if code_hash != otp.otp_hash:
+    if not hmac.compare_digest(code_hash, otp.otp_hash):
         await session.commit()  # Save the incremented attempt count
         raise HTTPException(status_code=400, detail="Invalid or expired code")
 

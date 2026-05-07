@@ -132,6 +132,13 @@ func (s *Scanner) scanSkill(skill ecosystem.DiscoveredSkill) (ScanResult, error)
 	for _, filePath := range sortedFiles {
 		fullPath := filepath.Join(skill.Path, filePath)
 
+		// Prevent path traversal via crafted file paths in skill manifest
+		cleanPath := filepath.Clean(fullPath)
+		cleanRoot := filepath.Clean(skill.Path)
+		if !strings.HasPrefix(cleanPath, cleanRoot+string(filepath.Separator)) && cleanPath != cleanRoot {
+			return result, fmt.Errorf("path traversal detected: %s escapes skill root %s", filePath, skill.Path)
+		}
+
 		rc, err := s.fileOpener.Open(fullPath)
 		if err != nil {
 			return result, fmt.Errorf("open %s: %w", fullPath, err)

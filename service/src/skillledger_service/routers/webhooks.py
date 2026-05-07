@@ -44,7 +44,7 @@ async def stripe_webhook(request: Request):
     factory = get_async_session_factory()
     async with factory() as session:
         # Idempotency check (T-23-05)
-        stmt = select(StripeEvent).where(StripeEvent.stripe_event_id == event_id)
+        stmt = select(StripeEvent).where(StripeEvent.stripe_event_id == event_id).with_for_update()
         result = await session.execute(stmt)
         existing = result.scalar_one_or_none()
 
@@ -85,7 +85,7 @@ async def _handle_event(
     elif event_type == "customer.subscription.deleted":
         await _handle_subscription_deleted(session, data_object, now)
     else:
-        logger.info(f"Unhandled Stripe event type: {event_type}")
+        logger.info("Unhandled Stripe event type: %s", event_type)
 
 
 async def _handle_checkout_completed(
@@ -172,9 +172,11 @@ async def _handle_subscription_updated(
         else:
             stripe_quantity = seat.seat_count
 
-        from skillledger_service.ee.seat_billing import reconcile_seat_from_webhook
-
-        await reconcile_seat_from_webhook(session, sub_id, stripe_quantity)
+        try:
+            from skillledger_service.ee.seat_billing import reconcile_seat_from_webhook
+            await reconcile_seat_from_webhook(session, sub_id, stripe_quantity)
+        except ImportError:
+            logger.warning("EE seat_billing not available, skipping seat reconciliation")
 
 
 async def _handle_subscription_deleted(

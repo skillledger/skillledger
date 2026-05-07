@@ -26,14 +26,17 @@ runs:
     - name: Sign artifact
       id: sign
       shell: bash
+      env:
+        ARTIFACT_PATH: ${{ inputs.artifact-path }}
+        LOCKFILE_PATH: ${{ inputs.lockfile-path }}
       run: |
         set -euo pipefail
-        ARTIFACT="${{ inputs.artifact-path }}"
+        ARTIFACT="$ARTIFACT_PATH"
         if [ ! -f "$ARTIFACT" ]; then
           echo "::error::Artifact not found at $ARTIFACT"
           exit 1
         fi
-        skillledger sign --artifact "$ARTIFACT" --lockfile "${{ inputs.lockfile-path }}"
+        skillledger sign --artifact "$ARTIFACT" --lockfile "$LOCKFILE_PATH"
         BUNDLE="${ARTIFACT}.sigstore.json"
         if [ ! -f "$BUNDLE" ]; then
           # Try alternative bundle location

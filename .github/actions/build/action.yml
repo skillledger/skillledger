@@ -23,9 +23,10 @@ runs:
   steps:
     - name: Install SkillLedger CLI
       shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
-        VERSION="${{ inputs.version }}"
         OS=$(uname -s | tr '[:upper:]' '[:lower:]')
         ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
         if [ "$VERSION" = "latest" ]; then
@@ -49,9 +50,11 @@ runs:
     - name: Build artifact
       id: build
       shell: bash
+      env:
+        SKILL_DIR: ${{ inputs.skill-dir }}
       run: |
         set -euo pipefail
-        cd "${{ inputs.skill-dir }}"
+        cd "$SKILL_DIR"
         skillledger build
         ARTIFACT=$(find dist -name '*.tar.gz' -type f | head -1)
         if [ -z "$ARTIFACT" ]; then

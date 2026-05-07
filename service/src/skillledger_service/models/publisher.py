@@ -26,7 +26,7 @@ class APIKey(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     key_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     key_prefix: Mapped[str] = mapped_column(String(8), nullable=False)
-    publisher_id: Mapped[int] = mapped_column(ForeignKey("publishers.id"), nullable=False)
+    publisher_id: Mapped[int] = mapped_column(ForeignKey("publishers.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )

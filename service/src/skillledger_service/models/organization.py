@@ -109,7 +109,7 @@ class Seat(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     org_id: Mapped[int] = mapped_column(
-        ForeignKey("organizations.id"), nullable=False, unique=True
+        ForeignKey("organizations.id"), nullable=False
     )
     stripe_subscription_id: Mapped[Optional[str]] = mapped_column(
         String(255), nullable=True

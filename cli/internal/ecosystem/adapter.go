@@ -142,6 +142,14 @@ func collectFiles(fs afero.Fs, root, dir string) ([]string, error) {
 	var files []string
 	for _, entry := range entries {
 		fullPath := filepath.Join(dir, entry.Name())
+
+		// Check for symlinks — skip them for security
+		if info, err := os.Lstat(fullPath); err != nil {
+			continue // skip unreadable files
+		} else if info.Mode()&os.ModeSymlink != 0 {
+			continue // skip symlinks for security
+		}
+
 		if entry.IsDir() {
 			sub, err := collectFiles(fs, root, fullPath)
 			if err != nil {
@@ -216,6 +224,11 @@ func discoverFromConfig(fs afero.Fs, configPath string, kind string, serverKey s
 
 	var skills []DiscoveredSkill
 	for name := range servers {
+		// Reject server names with path separators or control characters
+		if strings.ContainsAny(name, "/\\:\x00") {
+			continue // skip unsafe server names
+		}
+
 		skill := DiscoveredSkill{
 			ID:       name,
 			Name:     name,

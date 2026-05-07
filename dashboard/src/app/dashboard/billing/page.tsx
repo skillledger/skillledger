@@ -22,6 +22,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+function isTrustedRedirect(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return (
+      parsed.hostname.endsWith('.stripe.com') ||
+      parsed.hostname === window.location.hostname
+    )
+  } catch {
+    return false
+  }
+}
+
 function formatRelativeDate(dateStr: string): string {
   const date = new Date(dateStr)
   const now = new Date()
@@ -104,7 +116,7 @@ export default function BillingPage() {
     setCheckoutLoading(true)
     try {
       const { data } = await fetchClient.POST("/v1/billing/checkout") as { data?: { url?: string } }
-      if (data?.url) {
+      if (data?.url && isTrustedRedirect(data.url)) {
         window.location.href = data.url
       }
     } catch {
@@ -280,7 +292,9 @@ export default function BillingPage() {
                   <Button
                     variant="secondary"
                     onClick={() => {
-                      window.location.href = billingInfo.portal_url!
+                      if (isTrustedRedirect(billingInfo.portal_url!)) {
+                        window.location.href = billingInfo.portal_url!
+                      }
                     }}
                   >
                     Manage Seats
@@ -296,7 +310,9 @@ export default function BillingPage() {
               <Button
                 variant="default"
                 onClick={() => {
-                  window.location.href = billingInfo.portal_url!
+                  if (isTrustedRedirect(billingInfo.portal_url!)) {
+                    window.location.href = billingInfo.portal_url!
+                  }
                 }}
               >
                 Manage Billing

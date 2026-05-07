@@ -1,24 +1,13 @@
 import os
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
-
-
-def _resolve_database_url() -> str:
-    """Build async database URL from available env vars.
-
-    Priority: SKILLLEDGER_DATABASE_URL > DATABASE_URL (Render provides this).
-    Automatically swaps postgresql:// prefix to postgresql+asyncpg://.
-    """
-    url = os.environ.get("SKILLLEDGER_DATABASE_URL") or os.environ.get("DATABASE_URL", "")
-    if url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    return url or "sqlite+aiosqlite:///./skillledger.db"
 
 
 class Settings(BaseSettings):
     debug: bool = False
     service_name: str = "skillledger-service"
-    database_url: str = _resolve_database_url()
+    database_url: str = ""
     log_url: str = "http://localhost:2025"
     api_key_hash_algorithm: str = "sha256"
     admin_api_key: str = ""
@@ -38,3 +27,21 @@ class Settings(BaseSettings):
     ee_license_hash: str = ""
     saml_sp_entity_id: str = ""
     model_config = {"env_prefix": "SKILLLEDGER_"}
+
+    @model_validator(mode="after")
+    def resolve_db_url(self) -> "Settings":
+        """Build async database URL from available env vars.
+
+        Priority: SKILLLEDGER_DATABASE_URL > DATABASE_URL (Render provides this).
+        Automatically swaps postgresql:// prefix to postgresql+asyncpg://.
+        """
+        if not self.database_url:
+            url = os.environ.get("DATABASE_URL", "")
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            self.database_url = url or "sqlite+aiosqlite:///./skillledger.db"
+        elif self.database_url.startswith("postgresql://"):
+            self.database_url = self.database_url.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+        return self

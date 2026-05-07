@@ -3,9 +3,13 @@ package dsl
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
+
+// validCategory matches only lowercase alphanumeric and underscore — safe for Rego identifiers.
+var validCategory = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 // CompileError represents an error in compiling a specific rule.
 type CompileError struct {
@@ -43,6 +47,9 @@ func Compile(p *Policy) (string, error) {
 	sort.Strings(categories)
 
 	for _, category := range categories {
+		if !validCategory.MatchString(category) {
+			return "", fmt.Errorf("invalid category name %q: must match [a-z][a-z0-9_]*", category)
+		}
 		rules := p.Rules[category]
 		for i, rule := range rules {
 			if err := compileRule(&b, category, i, rule); err != nil {

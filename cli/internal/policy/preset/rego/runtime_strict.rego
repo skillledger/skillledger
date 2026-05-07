@@ -9,17 +9,33 @@ default trust_tier := "unverified"
 
 trust_tier := input.trust_tier
 
-# Helper: check if destination is localhost
+# Helper: check if destination is localhost (exact or with port)
 is_localhost(dest) if {
-    startswith(dest, "localhost")
+    dest == "localhost"
 }
 
 is_localhost(dest) if {
-    startswith(dest, "127.0.0.1")
+    startswith(dest, "localhost:")
 }
 
 is_localhost(dest) if {
-    startswith(dest, "::1")
+    dest == "127.0.0.1"
+}
+
+is_localhost(dest) if {
+    startswith(dest, "127.0.0.1:")
+}
+
+is_localhost(dest) if {
+    dest == "::1"
+}
+
+is_localhost(dest) if {
+    startswith(dest, "::1:")
+}
+
+is_localhost(dest) if {
+    startswith(dest, "[::1]")
 }
 
 # --- Unverified lockdown rules ---

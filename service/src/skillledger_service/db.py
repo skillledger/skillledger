@@ -25,4 +25,8 @@ def get_async_session_factory():
 async def get_session():
     factory = get_async_session_factory()
     async with factory() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise

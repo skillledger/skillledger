@@ -30,14 +30,24 @@ func ValidateEntry(entry *LogEntry) error {
 	if entry.ArtifactID == "" {
 		return fmt.Errorf("artifact_id is required")
 	}
+	if len(entry.ArtifactID) > 512 {
+		return fmt.Errorf("artifact_id too long (%d chars, max 512)", len(entry.ArtifactID))
+	}
 	if !sha256Regex.MatchString(entry.SHA256) {
 		return fmt.Errorf("sha256 must be exactly 64 lowercase hex characters, got %q", entry.SHA256)
 	}
 	if !strings.HasPrefix(entry.ContentAddress, "sha256-") {
 		return fmt.Errorf("content_address must start with \"sha256-\", got %q", entry.ContentAddress)
 	}
+	hashPart := strings.TrimPrefix(entry.ContentAddress, "sha256-")
+	if !sha256Regex.MatchString(hashPart) {
+		return fmt.Errorf("content_address hash must be 64 lowercase hex chars, got %q", hashPart)
+	}
 	if entry.PublishedAt == "" {
 		return fmt.Errorf("published_at is required")
+	}
+	if entry.Publisher == "" {
+		return fmt.Errorf("publisher is required")
 	}
 	return nil
 }

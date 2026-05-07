@@ -63,7 +63,7 @@ class OrgMembership(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    org_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), nullable=False)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organizations.id"), nullable=False, index=True)
     role: Mapped[OrgRole] = mapped_column(
         Enum(OrgRole, name="orgrole", create_constraint=True), nullable=False
     )

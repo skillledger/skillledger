@@ -13,7 +13,7 @@ def get_settings() -> Settings:
 @lru_cache
 def get_engine():
     settings = get_settings()
-    return create_async_engine(settings.database_url, echo=settings.debug)
+    return create_async_engine(settings.database_url, echo=settings.debug, pool_pre_ping=True)
 
 
 @lru_cache

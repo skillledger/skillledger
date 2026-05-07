@@ -52,7 +52,7 @@ func ParseAndValidate(yamlBytes []byte) (*Manifest, []ValidationError, error) {
 
 	if err := v.Validate(jsonBytes); err != nil {
 		validationErrors := extractValidationErrors(err)
-		return nil, validationErrors, nil
+		return nil, validationErrors, fmt.Errorf("schema validation failed with %d error(s)", len(validationErrors))
 	}
 
 	// Step 4: Parse into typed struct

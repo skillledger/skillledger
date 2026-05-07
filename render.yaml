@@ -1,0 +1,115 @@
+# Render Blueprint for SkillLedger
+# Deploy: https://render.com/deploy?repo=https://github.com/skillledger/skillledger
+#
+# This creates the full SkillLedger stack:
+#   - PostgreSQL 16 managed database
+#   - FastAPI service (public, with auto-migrations on startup)
+#   - Transparency log (private/internal, with persistent disk)
+#   - Next.js dashboard (public)
+
+services:
+  # FastAPI service - public (API + admin endpoints)
+  - type: web
+    name: skillledger-service
+    runtime: docker
+    dockerfilePath: ./service/Dockerfile
+    dockerContext: ./service
+    healthCheckPath: /health
+    plan: starter
+    envVars:
+      # Construct async DB URL from individual Render-provided properties.
+      # Render provides postgresql:// but SQLAlchemy async needs postgresql+asyncpg://
+      - key: SKILLLEDGER_DATABASE_URL
+        value: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: skillledger-db
+          property: host
+      - key: POSTGRES_PORT
+        fromDatabase:
+          name: skillledger-db
+          property: port
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: skillledger-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: skillledger-db
+          property: password
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: skillledger-db
+          property: database
+      # Construct the full log URL from the internal hostname.
+      # Render's pserv internal hostname follows the pattern: skillledger-log:2025
+      # but fromService only provides the bare hostname, so we build the URL explicitly.
+      - key: SKILLLEDGER_LOG_HOST
+        fromService:
+          name: skillledger-log
+          type: pserv
+          envVarKey: RENDER_INTERNAL_HOSTNAME
+      - key: SKILLLEDGER_LOG_URL
+        value: http://${SKILLLEDGER_LOG_HOST}:2025
+      - key: SKILLLEDGER_DEBUG
+        value: "false"
+      - fromGroup: skillledger-secrets
+
+  # Transparency log - private (internal service, not publicly accessible)
+  - type: pserv
+    name: skillledger-log
+    runtime: docker
+    dockerfilePath: ./log/Dockerfile
+    dockerContext: ./log
+    plan: starter
+    disk:
+      name: tlog-data
+      mountPath: /data/tlog
+      sizeGB: 10
+    envVars:
+      - key: STORAGE_DIR
+        value: /data/tlog
+      - key: LISTEN_ADDR
+        value: ":2025"
+      - fromGroup: skillledger-secrets
+
+  # Next.js dashboard - public
+  - type: web
+    name: skillledger-dashboard
+    runtime: docker
+    dockerfilePath: ./dashboard/Dockerfile
+    dockerContext: ./dashboard
+    healthCheckPath: /
+    plan: starter
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          name: skillledger-service
+          type: web
+          property: host
+        # Will need https:// prefix -- set manually after first deploy
+      - key: API_URL
+        fromService:
+          name: skillledger-service
+          type: web
+          envVarKey: RENDER_INTERNAL_HOSTNAME
+      - key: AUTH_TRUST_HOST
+        value: "true"
+      - fromGroup: skillledger-secrets
+
+databases:
+  - name: skillledger-db
+    plan: starter
+    databaseName: skillledger
+    postgresMajorVersion: "16"
+
+envVarGroups:
+  - name: skillledger-secrets
+    envVars:
+      - key: SKILLLEDGER_ADMIN_API_KEY
+        generateValue: true
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: LOG_PRIVATE_KEY
+        sync: false
+        # Must be manually set -- Ed25519 private key for transparency log signing

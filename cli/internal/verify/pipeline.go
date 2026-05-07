@@ -56,10 +56,11 @@ type VerifyResult struct {
 // Pipeline orchestrates the verification steps: signature check, transparency
 // log lookup, and policy evaluation. Dependencies are injected via interfaces.
 type Pipeline struct {
-	sigVerifier SignatureVerifier
-	tlogLooker  TlogLooker
-	policyEval  PolicyEvaluator
-	skipTlog    bool
+	sigVerifier   SignatureVerifier
+	tlogLooker    TlogLooker
+	policyEval    PolicyEvaluator
+	skipTlog      bool
+	proofVerifier *tlog.ProofVerifier
 }
 
 // PipelineOption configures the Pipeline.
@@ -68,6 +69,13 @@ type PipelineOption func(*Pipeline)
 // WithSkipTlog configures whether to skip the transparency log lookup step.
 func WithSkipTlog(skip bool) PipelineOption {
 	return func(p *Pipeline) { p.skipTlog = skip }
+}
+
+// WithProofVerifier configures an optional Merkle inclusion proof verifier (B-01).
+// When set, the tlog step will cryptographically verify that the entry is
+// included in the log's Merkle tree, rather than trusting server-asserted values.
+func WithProofVerifier(pv *tlog.ProofVerifier) PipelineOption {
+	return func(p *Pipeline) { p.proofVerifier = pv }
 }
 
 // NewPipeline creates a verification pipeline with the given dependencies

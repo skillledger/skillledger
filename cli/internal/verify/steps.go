@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -99,6 +100,32 @@ func (p *Pipeline) verifyTlog(ctx context.Context, artifactID, expectedSHA256 st
 	}
 
 	detail := fmt.Sprintf("Found at log index %d", entry.LogIndex)
+
+	// B-01: Merkle inclusion proof verification (optional, requires ProofVerifier).
+	if p.proofVerifier != nil {
+		leafData, err := json.Marshal(map[string]string{
+			"artifact_id":     artifactID,
+			"sha256":          expectedSHA256,
+			"content_address": "sha256-" + expectedSHA256,
+		})
+		if err != nil {
+			return StepResult{
+				Name:   "transparency-log",
+				Passed: false,
+				Error:  fmt.Sprintf("marshaling leaf data for proof: %s", err),
+			}, fmt.Errorf("marshaling leaf data: %w", err)
+		}
+
+		if err := p.proofVerifier.VerifyInclusion(ctx, uint64(entry.LogIndex), leafData); err != nil {
+			return StepResult{
+				Name:   "transparency-log",
+				Passed: false,
+				Error:  fmt.Sprintf("Merkle proof verification failed: %s", err),
+			}, err
+		}
+		detail = fmt.Sprintf("Found at log index %d (Merkle proof verified)", entry.LogIndex)
+	}
+
 	log.Debug().
 		Int64("log_index", entry.LogIndex).
 		Str("sha256", entry.SHA256).

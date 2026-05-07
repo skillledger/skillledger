@@ -5,10 +5,12 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -39,6 +41,8 @@ func main() {
 		listenAddr = ":2025"
 	}
 
+	authKey := os.Getenv("LOG_AUTH_KEY")
+
 	// Create the note signer for checkpoint signing (Ed25519).
 	signer, err := note.NewSigner(privateKey)
 	if err != nil {
@@ -58,7 +62,20 @@ func main() {
 	mux := http.NewServeMux()
 
 	// POST /add -- accepts LogEntry JSON, validates, adds to Tessera log, returns index.
-	mux.HandleFunc("POST /add", p.HandleAdd)
+	addHandler := http.HandlerFunc(p.HandleAdd)
+	if authKey != "" {
+		mux.HandleFunc("POST /add", func(w http.ResponseWriter, r *http.Request) {
+			auth := r.Header.Get("Authorization")
+			if auth == "" || !strings.HasPrefix(auth, "Bearer ") || subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(auth, "Bearer ")), []byte(authKey)) != 1 {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			addHandler.ServeHTTP(w, r)
+		})
+	} else {
+		log.Warn().Msg("LOG_AUTH_KEY not set -- /add endpoint is unauthenticated")
+		mux.HandleFunc("POST /add", p.HandleAdd)
+	}
 
 	// GET /checkpoint, /tile/*, /entries/* -- serve Tessera's tile data as static files.
 	// Tessera writes tiles, checkpoints, and entry bundles to the storage directory.

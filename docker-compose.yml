@@ -27,8 +27,8 @@ services:
     environment:
       - SKILLLEDGER_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-skillledger}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-skillledger}
       - SKILLLEDGER_LOG_URL=http://skillledger-log:2025
-      - SKILLLEDGER_ADMIN_API_KEY=${SKILLLEDGER_ADMIN_API_KEY:-dev-admin-key-do-not-use-in-prod}
-      - SKILLLEDGER_JWT_SECRET=${SKILLLEDGER_JWT_SECRET:-dev-jwt-secret-do-not-use-in-prod}
+      - SKILLLEDGER_ADMIN_API_KEY=${SKILLLEDGER_ADMIN_API_KEY:?Set SKILLLEDGER_ADMIN_API_KEY in .env}
+      - SKILLLEDGER_JWT_SECRET=${SKILLLEDGER_JWT_SECRET:?Set SKILLLEDGER_JWT_SECRET in .env}
       - SKILLLEDGER_DASHBOARD_URL=${SKILLLEDGER_DASHBOARD_URL:-http://localhost:3000}
       - SKILLLEDGER_DEBUG=false
     depends_on:
@@ -60,7 +60,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - AUTH_SECRET=${AUTH_SECRET:-dev-secret-change-in-prod}
+      - AUTH_SECRET=${AUTH_SECRET:?Set AUTH_SECRET in .env}
       - AUTH_URL=http://localhost:3000
       - NEXT_PUBLIC_API_URL=http://skillledger-service:8000
       - API_URL=http://skillledger-service:8000

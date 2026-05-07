@@ -60,6 +60,11 @@ func runVerify(cmd *cobra.Command, args []string) error {
 	expectedIssuer, _ := cmd.Flags().GetString("expected-issuer")
 	expectedIdentity, _ := cmd.Flags().GetString("expected-identity")
 
+	// Validate that --expected-issuer and --expected-identity are provided together
+	if (expectedIssuer != "") != (expectedIdentity != "") {
+		return fmt.Errorf("--expected-issuer and --expected-identity must be provided together")
+	}
+
 	// Resolve artifact path
 	absArtifact, err := filepath.Abs(artifactPath)
 	if err != nil {

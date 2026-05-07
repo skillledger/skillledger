@@ -75,7 +75,14 @@ func (p *Pipeline) Verify(ctx context.Context, input VerifyInput) (*VerifyResult
 	}
 
 	// --- Step 2: Transparency log lookup (skippable) ---
-	if !p.skipTlog {
+	if input.SkipTlog || p.skipTlog {
+		result.Steps = append(result.Steps, StepResult{
+			Name:   "transparency-log",
+			Passed: true,
+			Detail: "SKIPPED (--skip-tlog flag set)",
+		})
+		result.Warnings = append(result.Warnings, "transparency log verification was skipped via --skip-tlog")
+	} else {
 		tlogStep, err := p.verifyTlog(ctx, lf.ArtifactID, lf.SHA256)
 		result.Steps = append(result.Steps, tlogStep)
 		if err != nil {

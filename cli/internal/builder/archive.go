@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -30,7 +31,9 @@ func ResolveEpoch() time.Time {
 // and the supplied epoch as ModTime. The gzip OS byte is set to 0xFF
 // (unknown) to prevent platform-dependent variation.
 func CreateDeterministicArchive(w io.Writer, manifestJSON []byte, files []FileEntry, epoch time.Time) error {
-	gz, err := gzip.NewWriterLevel(w, gzip.DefaultCompression)
+	// Pin compression level explicitly for cross-Go-version determinism
+	// (gzip.DefaultCompression maps to level 6 in current Go, but is not guaranteed stable)
+	gz, err := gzip.NewWriterLevel(w, 6)
 	if err != nil {
 		return fmt.Errorf("create gzip writer: %w", err)
 	}
@@ -89,5 +92,8 @@ func writeEntry(tw *tar.Writer, name string, content []byte, epoch time.Time) er
 func ContentAddressedName(id, version string, artifactBytes []byte) string {
 	hash := scanner.HashBytes(artifactBytes)
 	shortHash := hash[:12]
-	return fmt.Sprintf("%s-%s-%s.skillledger.tar.gz", id, version, shortHash)
+	// Sanitize to prevent path traversal via crafted manifest id/version
+	safeID := filepath.Base(id)
+	safeVersion := filepath.Base(version)
+	return fmt.Sprintf("%s-%s-%s.skillledger.tar.gz", safeID, safeVersion, shortHash)
 }

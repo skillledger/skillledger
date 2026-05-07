@@ -86,8 +86,10 @@ func compileRule(b *strings.Builder, category string, index int, rule Rule) erro
 		return &CompileError{Category: category, Index: index, Message: err.Error()}
 	}
 
-	// Escape double quotes in message for Rego string literal
+	// Escape double quotes and newlines in message for Rego comment safety
 	escapedMsg := strings.ReplaceAll(rule.Message, `"`, `\"`)
+	escapedMsg = strings.ReplaceAll(escapedMsg, "\n", " ")
+	escapedMsg = strings.ReplaceAll(escapedMsg, "\r", " ")
 
 	fmt.Fprintf(b, "# Rule: %s - %s\n", category, escapedMsg)
 	fmt.Fprintf(b, "%s contains msg if {\n", ruleSet)

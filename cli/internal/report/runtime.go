@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"sort"
 
 	"github.com/owenrumney/go-sarif/v3/pkg/report"
 	"github.com/owenrumney/go-sarif/v3/pkg/report/v210/sarif"
@@ -143,7 +144,14 @@ func GenerateRuntimeSARIF(w io.Writer, entries []proxy.DecisionEntry) error {
 	run := sarif.NewRunWithInformationURI("skillledger-runtime", "https://skillledger.dev")
 
 	// Register all rules from the registry with GitHub-required fields.
-	for _, rule := range runtimeRules {
+	// Sort keys for deterministic SARIF output.
+	ruleKeys := make([]string, 0, len(runtimeRules))
+	for k := range runtimeRules {
+		ruleKeys = append(ruleKeys, k)
+	}
+	sort.Strings(ruleKeys)
+	for _, k := range ruleKeys {
+		rule := runtimeRules[k]
 		run.AddRule(rule.ID).
 			WithShortDescription(sarif.NewMultiformatMessageString().WithText(rule.ShortDescription)).
 			WithFullDescription(sarif.NewMultiformatMessageString().WithText(rule.FullDescription)).

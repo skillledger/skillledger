@@ -97,6 +97,11 @@ func compileRule(b *strings.Builder, category string, index int, rule Rule) erro
 	fmt.Fprintf(b, "    %s\n", regoCondition)
 
 	if len(rule.Except) > 0 {
+		for _, ex := range rule.Except {
+			if strings.ContainsAny(ex, "\\\n\r\t\"") {
+				return &CompileError{Category: category, Index: index, Message: fmt.Sprintf("invalid except value: %q (contains disallowed characters)", ex)}
+			}
+		}
 		quoted := make([]string, len(rule.Except))
 		for i, ex := range rule.Except {
 			quoted[i] = fmt.Sprintf("%q", ex)

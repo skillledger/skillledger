@@ -48,7 +48,7 @@ func Load() (*Database, error) {
 	}
 	db := &Database{entries: make(map[string]Entry, len(entries))}
 	for _, e := range entries {
-		db.entries[e.SHA256] = e
+		db.entries[strings.ToLower(e.SHA256)] = e
 	}
 
 	// Load bundled domain IOC data (supplementary; warn but don't fail).
@@ -69,7 +69,7 @@ func NewDatabase() *Database {
 
 // AddEntry adds an IOC entry to the database.
 func (d *Database) AddEntry(e Entry) {
-	d.entries[e.SHA256] = e
+	d.entries[strings.ToLower(e.SHA256)] = e
 }
 
 // AddDomainEntry adds a domain IOC entry to the database.
@@ -99,7 +99,7 @@ func (d *Database) DomainCount() int {
 // Match checks if a SHA-256 hash is in the IOC database.
 // Returns the IOCMatchInfo (compatible with scanner.IOCChecker) and whether a match was found.
 func (d *Database) Match(sha256 string) (*scanner.IOCMatchInfo, bool) {
-	e, ok := d.entries[sha256]
+	e, ok := d.entries[strings.ToLower(sha256)]
 	if !ok {
 		return nil, false
 	}
@@ -170,7 +170,7 @@ func (d *Database) fetchAndMerge(apiURL string, client *http.Client) error {
 	var update updateResponse
 	if err := json.Unmarshal(body, &update); err == nil && (len(update.Hashes) > 0 || len(update.Domains) > 0) {
 		for _, e := range update.Hashes {
-			d.entries[e.SHA256] = e
+			d.entries[strings.ToLower(e.SHA256)] = e
 		}
 		d.domainEntries = append(d.domainEntries, update.Domains...)
 		return nil
@@ -182,7 +182,7 @@ func (d *Database) fetchAndMerge(apiURL string, client *http.Client) error {
 		return fmt.Errorf("parsing IOC response: %w", err)
 	}
 	for _, e := range entries {
-		d.entries[e.SHA256] = e
+		d.entries[strings.ToLower(e.SHA256)] = e
 	}
 	return nil
 }
@@ -233,7 +233,7 @@ func LoadWithCache(cacheDir string, buildTime time.Time) (*Database, error) {
 	// Build Database from cached response.
 	db := &Database{entries: make(map[string]Entry, len(resp.Hashes))}
 	for _, e := range resp.Hashes {
-		db.entries[e.SHA256] = e
+		db.entries[strings.ToLower(e.SHA256)] = e
 	}
 	db.domainEntries = resp.Domains
 

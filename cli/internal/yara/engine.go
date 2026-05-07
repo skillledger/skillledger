@@ -63,7 +63,7 @@ func NewEngine(rulesDir string) (*Engine, error) {
 			return nil, fmt.Errorf("rule file %s escapes rules directory", name)
 		}
 
-		data, err := os.ReadFile(fullPath)
+		data, err := os.ReadFile(resolved)
 		if err != nil {
 			return nil, fmt.Errorf("reading rule file %s: %w", name, err)
 		}

@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from skillledger_service.db import get_async_session_factory, get_engine, get_settings
 from skillledger_service.seed import seed_threat_data
@@ -48,6 +49,17 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="SkillLedger Service", version="0.1.0", lifespan=lifespan)
+
+    settings = get_settings()
+    if settings.cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.cors_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
     app.include_router(health_router)
     app.include_router(log_router)
     app.include_router(publishers_router)

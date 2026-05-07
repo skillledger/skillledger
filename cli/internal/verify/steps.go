@@ -3,6 +3,7 @@ package verify
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -32,7 +33,7 @@ func computeAndCompareHash(artifactPath, expectedSHA256 string) ([]byte, error) 
 	digest := h.Sum(nil)
 	hexDigest := hex.EncodeToString(digest)
 
-	if hexDigest != expectedSHA256 {
+	if subtle.ConstantTimeCompare([]byte(hexDigest), []byte(expectedSHA256)) != 1 {
 		return nil, fmt.Errorf("artifact hash mismatch: expected %s, got %s", expectedSHA256, hexDigest)
 	}
 
@@ -88,7 +89,7 @@ func (p *Pipeline) verifyTlog(ctx context.Context, artifactID, expectedSHA256 st
 	}
 
 	// T-07-05: Compare log entry SHA-256 with lockfile to catch substitution.
-	if entry.SHA256 != expectedSHA256 {
+	if subtle.ConstantTimeCompare([]byte(entry.SHA256), []byte(expectedSHA256)) != 1 {
 		errMsg := fmt.Sprintf("SHA-256 mismatch between log entry and lockfile: log=%s, lockfile=%s", entry.SHA256, expectedSHA256)
 		return StepResult{
 			Name:   "transparency-log",

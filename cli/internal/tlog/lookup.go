@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/rs/zerolog/log"
 )
@@ -24,10 +25,10 @@ type LookupResponse struct {
 // It returns the entry metadata if found, or an error if the artifact is
 // not in the log or the service is unavailable.
 func (c *Client) LookupEntry(ctx context.Context, artifactID string) (*LookupResponse, error) {
-	url := c.serviceURL + "/log/lookup/" + artifactID
-	log.Debug().Str("url", url).Msg("looking up artifact in transparency log")
+	reqURL := c.serviceURL + "/log/lookup/" + url.PathEscape(artifactID)
+	log.Debug().Str("url", reqURL).Msg("looking up artifact in transparency log")
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating HTTP request: %w", err)
 	}

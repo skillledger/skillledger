@@ -137,12 +137,15 @@ generate_env() {
     pg_password=$(openssl rand -base64 32 | tr -d '=/+' | head -c 32)
     local admin_key
     admin_key=$(openssl rand -base64 32 | tr -d '=/+' | head -c 32)
+    local jwt_secret
+    jwt_secret=$(openssl rand -base64 32)
     local auth_secret
     auth_secret=$(openssl rand -base64 32)
 
     # Replace empty values with generated secrets
     sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${pg_password}|" .env
     sed -i "s|^SKILLLEDGER_ADMIN_API_KEY=.*|SKILLLEDGER_ADMIN_API_KEY=${admin_key}|" .env
+    sed -i "s|^SKILLLEDGER_JWT_SECRET=.*|SKILLLEDGER_JWT_SECRET=${jwt_secret}|" .env
     sed -i "s|^AUTH_SECRET=.*|AUTH_SECRET=${auth_secret}|" .env
 
     # Restrict .env file permissions (T-30-08: secrets on disk)
@@ -164,6 +167,7 @@ generate_env() {
     if [ -n "$dash_domain" ]; then
         validate_domain "$dash_domain"
         sed -i "s|^DASHBOARD_DOMAIN=.*|DASHBOARD_DOMAIN=${dash_domain}|" .env
+        sed -i "s|^SKILLLEDGER_DASHBOARD_URL=.*|SKILLLEDGER_DASHBOARD_URL=https://${dash_domain}|" .env
     fi
 
     # LOG_PRIVATE_KEY -- prompt user (CR-01: don't deploy with unset key)

@@ -71,10 +71,7 @@ services:
           type: web
           property: url
       - key: API_URL
-        fromService:
-          name: skillledger-service
-          type: web
-          envVarKey: RENDER_INTERNAL_HOSTNAME
+        value: http://skillledger-service:8000
       - key: AUTH_TRUST_HOST
         value: "true"
       - fromGroup: skillledger-secrets
@@ -89,6 +86,8 @@ envVarGroups:
   - name: skillledger-secrets
     envVars:
       - key: SKILLLEDGER_ADMIN_API_KEY
+        generateValue: true
+      - key: SKILLLEDGER_JWT_SECRET
         generateValue: true
       - key: AUTH_SECRET
         generateValue: true

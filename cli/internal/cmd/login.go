@@ -37,6 +37,17 @@ type loginTokenResponse struct {
 	TokenType    string `json:"token_type"`
 }
 
+// meResponse is the JSON shape returned by GET /v1/me.
+type meResponse struct {
+	Email string  `json:"email"`
+	Orgs  []meOrg `json:"orgs"`
+}
+
+type meOrg struct {
+	OrgSlug string `json:"org_slug"`
+	Role    string `json:"role"`
+}
+
 func runLogin(cmd *cobra.Command, args []string) error {
 	serviceURL := resolveServiceURL(cmd, "service-url")
 	reader := bufio.NewReader(os.Stdin)
@@ -90,11 +101,20 @@ func runLogin(cmd *cobra.Command, args []string) error {
 			RefreshToken: tokenResp.RefreshToken,
 			ExpiresAt:    credentials.ExtractExpiry(tokenResp.AccessToken),
 		}
+
+		// Discover org membership via GET /v1/me
+		if orgSlug := fetchOrgSlug(serviceURL, tokenResp.AccessToken); orgSlug != "" {
+			creds.OrgSlug = orgSlug
+		}
+
 		if saveErr := credentials.Save(creds); saveErr != nil {
 			return fmt.Errorf("saving credentials: %w", saveErr)
 		}
 
 		fmt.Fprintln(os.Stdout, loginSuccessStyle.Render("Logged in successfully!"))
+		if creds.OrgSlug != "" {
+			fmt.Fprintln(os.Stdout, loginInfoStyle.Render(fmt.Sprintf("Organization: %s", creds.OrgSlug)))
+		}
 		return nil
 	}
 
@@ -149,6 +169,34 @@ func verifyOTP(serviceURL, email, code string) (*loginTokenResponse, error) {
 	}
 
 	return &tokenResp, nil
+}
+
+// fetchOrgSlug calls GET /v1/me to discover the user's org membership.
+// Returns the first org slug, or empty string on any error.
+func fetchOrgSlug(serviceURL, accessToken string) string {
+	req, err := http.NewRequest("GET", serviceURL+"/v1/me", nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		return ""
+	}
+	defer resp.Body.Close()
+
+	var me meResponse
+	if err := json.NewDecoder(resp.Body).Decode(&me); err != nil {
+		return ""
+	}
+	if len(me.Orgs) > 0 {
+		return me.Orgs[0].OrgSlug
+	}
+	return ""
 }
 
 func init() {

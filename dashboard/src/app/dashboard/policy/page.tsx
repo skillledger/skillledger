@@ -16,6 +16,7 @@ import {
 import { EmptyState } from "@/components/dashboard/empty-state"
 import { useOrg } from "@/hooks/use-org"
 import { $api } from "@/lib/api"
+import { fetchClient } from "@/lib/api-client"
 import { FileCode2 } from "lucide-react"
 
 const Editor = dynamic(
@@ -77,23 +78,21 @@ export default function PolicyEditorPage() {
     setCompileError("")
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/ee/v1/orgs/${encodeURIComponent(orgSlug)}/policy`,
+      const { data, error } = await fetchClient.PUT(
+        "/ee/v1/orgs/{slug}/policy",
         {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rego: dslCode, deploy: false }),
+          params: { path: { slug: orgSlug } },
+          body: { rego: dslCode, deploy: false },
         }
       )
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ detail: "Compilation failed" }))
-        setCompileError(err.detail || "Compilation failed")
+      if (error) {
+        const detail = (error as { detail?: string }).detail || "Compilation failed"
+        setCompileError(detail)
         return
       }
 
-      const result = await response.json()
-      setRegoPreview(result.rego)
+      setRegoPreview((data as { rego?: string })?.rego ?? "")
       setCompileError("")
     } catch (err) {
       setCompileError(err instanceof Error ? err.message : "Network error")
@@ -108,23 +107,21 @@ export default function PolicyEditorPage() {
     setDeployError("")
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/ee/v1/orgs/${encodeURIComponent(orgSlug)}/policy`,
+      const { data, error } = await fetchClient.PUT(
+        "/ee/v1/orgs/{slug}/policy",
         {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rego: dslCode, deploy: true }),
+          params: { path: { slug: orgSlug } },
+          body: { rego: dslCode, deploy: true },
         }
       )
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ detail: "Deploy failed" }))
-        setDeployError(err.detail || "Deploy failed")
+      if (error) {
+        const detail = (error as { detail?: string }).detail || "Deploy failed"
+        setDeployError(detail)
         return
       }
 
-      const result = await response.json()
-      setRegoPreview(result.rego)
+      setRegoPreview((data as { rego?: string })?.rego ?? "")
       setShowDeployDialog(false)
       setDeployError("")
     } catch (err) {

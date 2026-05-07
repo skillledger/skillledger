@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -8,6 +9,14 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from skillledger_service.models import Base
 
 config = context.config
+
+# Override alembic.ini sqlalchemy.url with environment variable if set.
+# This allows the same alembic config to work for both local dev (sqlite from ini)
+# and production (postgresql+asyncpg from SKILLLEDGER_DATABASE_URL env var).
+db_url = os.environ.get("SKILLLEDGER_DATABASE_URL")
+if db_url:
+    config.set_main_option("sqlalchemy.url", db_url)
+
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 

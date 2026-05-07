@@ -155,11 +155,20 @@ func (s *Scanner) scanSkill(skill ecosystem.DiscoveredSkill) (ScanResult, error)
 		result.SHA256 = HashBytes([]byte(combined))
 	}
 
-	// Step 2: IOC check
-	if s.iocChecker != nil && result.SHA256 != "" {
-		if match, found := s.iocChecker.Match(result.SHA256); found {
-			result.IOCMatch = match
-			result.Status = "compromised"
+	// Step 2: IOC check — individual file hashes first, then composite
+	if s.iocChecker != nil {
+		for _, fileHash := range allHashes {
+			if match, found := s.iocChecker.Match(fileHash); found {
+				result.IOCMatch = match
+				result.Status = "compromised"
+				break
+			}
+		}
+		if result.Status != "compromised" && result.SHA256 != "" {
+			if match, found := s.iocChecker.Match(result.SHA256); found {
+				result.IOCMatch = match
+				result.Status = "compromised"
+			}
 		}
 	}
 

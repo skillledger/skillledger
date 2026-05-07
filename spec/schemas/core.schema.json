@@ -20,7 +20,7 @@
     },
     "version": {
       "type": "string",
-      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?(\\+[a-zA-Z0-9.]+)?$",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*)?(\\+[a-zA-Z0-9]+([.-][a-zA-Z0-9]+)*)?$",
       "maxLength": 64,
       "description": "SemVer version string"
     },
@@ -101,6 +101,7 @@
         "directory": {
           "type": "string",
           "maxLength": 512,
+          "not": { "pattern": "(^/|\\.\\.)" },
           "description": "Subdirectory within the repo"
         }
       },

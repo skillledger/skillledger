@@ -37,10 +37,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials.accessToken || !credentials.refreshToken) return null
-        return {
-          id: "saml-user",
-          accessToken: credentials.accessToken as string,
-          refreshToken: credentials.refreshToken as string,
+
+        // Validate token with backend before creating session
+        try {
+          const res = await fetch(`${process.env.SKILLLEDGER_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/v1/me`, {
+            headers: { Authorization: `Bearer ${credentials.accessToken}` },
+          })
+          if (!res.ok) return null
+          const user = await res.json()
+          return {
+            id: String(user.id ?? "saml-user"),
+            email: user.email ?? "",
+            accessToken: credentials.accessToken as string,
+            refreshToken: credentials.refreshToken as string,
+          }
+        } catch {
+          return null
         }
       },
     }),

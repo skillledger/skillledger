@@ -29,7 +29,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 class RegisterRequest(BaseModel):
-    email: str = Field(..., max_length=255)
+    email: str = Field(..., max_length=255, pattern=r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
 
 
 class VerifyRequest(BaseModel):

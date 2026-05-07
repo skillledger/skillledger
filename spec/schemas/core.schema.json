@@ -14,11 +14,14 @@
     "id": {
       "type": "string",
       "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)*$",
+      "minLength": 3,
+      "maxLength": 256,
       "description": "Reverse-domain-style identifier (e.g., com.example.my-skill)"
     },
     "version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?(\\+[a-zA-Z0-9.]+)?$",
+      "maxLength": 64,
       "description": "SemVer version string"
     },
     "kind": {
@@ -87,14 +90,17 @@
         "repository": {
           "type": "string",
           "format": "uri",
+          "maxLength": 2048,
           "description": "Git repository URL"
         },
         "ref": {
           "type": "string",
+          "maxLength": 256,
           "description": "Git ref (branch, tag, or commit SHA)"
         },
         "directory": {
           "type": "string",
+          "maxLength": 512,
           "description": "Subdirectory within the repo"
         }
       },
@@ -109,7 +115,9 @@
         },
         "env": {
           "type": "object",
-          "additionalProperties": { "type": "string" },
+          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+          "additionalProperties": { "type": "string", "maxLength": 4096 },
+          "maxProperties": 50,
           "description": "Build environment variables"
         },
         "reproducible": {

@@ -9,8 +9,12 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^(read|write)(:.+)?$"
+        "allOf": [
+          { "pattern": "^(read|write)(:.+)?$" },
+          { "not": { "pattern": "\\.\\." } }
+        ]
       },
+      "maxItems": 100,
       "description": "Filesystem permissions (e.g., read, write:./data)"
     },
     "network": {
@@ -19,14 +23,19 @@
         "type": "string",
         "pattern": "^(outbound|inbound)(:.+)?$"
       },
+      "maxItems": 100,
       "description": "Network permissions (e.g., outbound:*.openai.com)"
     },
     "secrets": {
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^(env|file|vault)(:.+)?$"
+        "allOf": [
+          { "pattern": "^(env|file|vault)(:.+)?$" },
+          { "not": { "pattern": "\\.\\." } }
+        ]
       },
+      "maxItems": 100,
       "description": "Secrets access (e.g., env:API_KEY, file:/etc/secret)"
     },
     "tools": {
@@ -35,6 +44,7 @@
         "type": "string",
         "pattern": "^(execute)(:.+)?$"
       },
+      "maxItems": 50,
       "description": "Tool execution (e.g., execute:bash, execute:python)"
     }
   },

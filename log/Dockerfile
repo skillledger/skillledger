@@ -20,8 +20,12 @@ RUN apk add --no-cache curl ca-certificates
 
 COPY --from=builder /skillledger-log /usr/local/bin/skillledger-log
 
-# Create default storage directory for POSIX log data.
-RUN mkdir -p /data/tlog
+# Create default storage directory for POSIX log data and non-root user.
+RUN mkdir -p /data/tlog && \
+    adduser -D -u 1001 loguser && \
+    chown -R loguser:loguser /data/tlog
+
+USER loguser
 
 EXPOSE 2025
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"github.com/skillledger/skillledger/internal/proxy"
 )
@@ -136,9 +137,34 @@ func runProxyPolicySet(cmd *cobra.Command, args []string) error {
 	baseDir := proxyBaseDir()
 	configPath := filepath.Join(baseDir, "proxy", "policy.yaml")
 
-	fmt.Printf("Set %s -> %s\n", violationType, action)
-	fmt.Printf("\nTo persist this change, edit: %s\n", configPath)
-	fmt.Printf("Restart the proxy to apply: skillledger proxy start --preset <preset>\n")
+	// Load existing config or start from defaults.
+	config := proxy.DefaultPolicyConfig()
+	if data, err := os.ReadFile(configPath); err == nil {
+		if fc, err := proxy.LoadPolicyConfig(data); err == nil {
+			config = proxy.MergePolicyConfigs(config, fc)
+		}
+	}
+
+	// Apply the change.
+	if config.ResponseActions == nil {
+		config.ResponseActions = make(map[string]string)
+	}
+	config.ResponseActions[violationType] = action
+
+	// Write back.
+	if err := os.MkdirAll(filepath.Dir(configPath), 0750); err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
+	}
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
+	}
+	if err := os.WriteFile(configPath, data, 0640); err != nil {
+		return fmt.Errorf("writing config: %w", err)
+	}
+
+	fmt.Printf("Set %s -> %s (written to %s)\n", violationType, action, configPath)
+	fmt.Printf("Restart the proxy to apply: skillledger proxy start\n")
 
 	return nil
 }
@@ -154,9 +180,30 @@ func runProxyPolicyPreset(cmd *cobra.Command, args []string) error {
 	baseDir := proxyBaseDir()
 	configPath := filepath.Join(baseDir, "proxy", "policy.yaml")
 
-	fmt.Printf("Preset set to: %s\n", presetName)
-	fmt.Printf("\nTo persist, edit: %s\n", configPath)
-	fmt.Printf("Restart the proxy to apply: skillledger proxy start --preset %s\n", presetName)
+	// Load existing config or start from defaults.
+	config := proxy.DefaultPolicyConfig()
+	if data, err := os.ReadFile(configPath); err == nil {
+		if fc, err := proxy.LoadPolicyConfig(data); err == nil {
+			config = proxy.MergePolicyConfigs(config, fc)
+		}
+	}
+
+	config.Preset = presetName
+
+	// Write back.
+	if err := os.MkdirAll(filepath.Dir(configPath), 0750); err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
+	}
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("marshaling config: %w", err)
+	}
+	if err := os.WriteFile(configPath, data, 0640); err != nil {
+		return fmt.Errorf("writing config: %w", err)
+	}
+
+	fmt.Printf("Preset set to: %s (written to %s)\n", presetName, configPath)
+	fmt.Printf("Restart the proxy to apply: skillledger proxy start\n")
 
 	return nil
 }

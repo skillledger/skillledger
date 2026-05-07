@@ -157,6 +157,7 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 
 		// Construct v1 verify pipeline for trust verification.
 		sigVerifier := signer.NewVerifier()
+		log.Warn().Msg("proxy verifier has no identity constraints -- accepts any valid Sigstore signature; use --expected-issuer and --expected-identity for production")
 		tlogClient := tlog.NewClient(tlog.WithServiceURL(tlogURL))
 		pipeline := verify.NewPipeline(sigVerifier, tlogClient, nil)
 		opts = append(opts, proxy.WithVerifyPipeline(pipeline))

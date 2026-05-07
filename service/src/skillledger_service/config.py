@@ -1,10 +1,24 @@
+import os
+
 from pydantic_settings import BaseSettings
+
+
+def _resolve_database_url() -> str:
+    """Build async database URL from available env vars.
+
+    Priority: SKILLLEDGER_DATABASE_URL > DATABASE_URL (Render provides this).
+    Automatically swaps postgresql:// prefix to postgresql+asyncpg://.
+    """
+    url = os.environ.get("SKILLLEDGER_DATABASE_URL") or os.environ.get("DATABASE_URL", "")
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return url or "sqlite+aiosqlite:///./skillledger.db"
 
 
 class Settings(BaseSettings):
     debug: bool = False
     service_name: str = "skillledger-service"
-    database_url: str = "sqlite+aiosqlite:///./skillledger.db"
+    database_url: str = _resolve_database_url()
     log_url: str = "http://localhost:2025"
     api_key_hash_algorithm: str = "sha256"
     admin_api_key: str = ""

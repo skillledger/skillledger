@@ -17,30 +17,13 @@ services:
     healthCheckPath: /health
     plan: starter
     envVars:
-      # Construct async DB URL from individual Render-provided properties.
+      # Use Render's native connectionString and replace driver prefix in config.py.
       # Render provides postgresql:// but SQLAlchemy async needs postgresql+asyncpg://
-      - key: SKILLLEDGER_DATABASE_URL
-        value: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
-      - key: POSTGRES_HOST
+      # The service's config.py handles the prefix swap automatically.
+      - key: DATABASE_URL
         fromDatabase:
           name: skillledger-db
-          property: host
-      - key: POSTGRES_PORT
-        fromDatabase:
-          name: skillledger-db
-          property: port
-      - key: POSTGRES_USER
-        fromDatabase:
-          name: skillledger-db
-          property: user
-      - key: POSTGRES_PASSWORD
-        fromDatabase:
-          name: skillledger-db
-          property: password
-      - key: POSTGRES_DB
-        fromDatabase:
-          name: skillledger-db
-          property: database
+          property: connectionString
       # Construct the full log URL from the internal hostname.
       # Render's pserv internal hostname follows the pattern: skillledger-log:2025
       # but fromService only provides the bare hostname, so we build the URL explicitly.
@@ -79,15 +62,14 @@ services:
     runtime: docker
     dockerfilePath: ./dashboard/Dockerfile
     dockerContext: ./dashboard
-    healthCheckPath: /
+    healthCheckPath: /api/health
     plan: starter
     envVars:
       - key: NEXT_PUBLIC_API_URL
         fromService:
           name: skillledger-service
           type: web
-          property: host
-        # Will need https:// prefix -- set manually after first deploy
+          property: url
       - key: API_URL
         fromService:
           name: skillledger-service
@@ -112,4 +94,6 @@ envVarGroups:
         generateValue: true
       - key: LOG_PRIVATE_KEY
         sync: false
-        # Must be manually set -- Ed25519 private key for transparency log signing
+        # REQUIRED: Ed25519 signing key for transparency log.
+        # Generate: openssl genpkey -algorithm Ed25519 -outform DER | base64 -w0
+        # Paste the base64 output in the Render dashboard before first deploy.

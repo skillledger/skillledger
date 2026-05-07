@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir .
 
 FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends xmlsec1 && rm -rf /var/lib/apt/lists/*
+RUN useradd --system --uid 1001 --no-create-home appuser
 WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin/uvicorn /usr/local/bin/uvicorn
@@ -16,7 +17,8 @@ COPY src/ ./src/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
 COPY entrypoint.sh ./
-RUN chmod +x entrypoint.sh
+RUN chmod +x entrypoint.sh && chown -R appuser:appuser /app
+USER appuser
 ENV PYTHONPATH=/app/src
 EXPOSE 8000
 HEALTHCHECK --interval=5s --timeout=3s CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1

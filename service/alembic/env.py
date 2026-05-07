@@ -13,9 +13,17 @@ config = context.config
 # Override alembic.ini sqlalchemy.url with environment variable if set.
 # This allows the same alembic config to work for both local dev (sqlite from ini)
 # and production (postgresql+asyncpg from SKILLLEDGER_DATABASE_URL env var).
-db_url = os.environ.get("SKILLLEDGER_DATABASE_URL")
+db_url = os.environ.get("SKILLLEDGER_DATABASE_URL") or os.environ.get("DATABASE_URL")
 if db_url:
+    if db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     config.set_main_option("sqlalchemy.url", db_url)
+else:
+    import logging
+    logging.getLogger("alembic").warning(
+        "SKILLLEDGER_DATABASE_URL not set — using sqlite fallback from alembic.ini. "
+        "This is expected for local dev only."
+    )
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

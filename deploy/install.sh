@@ -26,6 +26,15 @@ info() { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
+# --- Input validation (CR-02) ---
+validate_domain() {
+    local domain="$1"
+    if [[ ! "$domain" =~ ^[a-zA-Z0-9.-]+$ ]]; then
+        error "Invalid domain name: '$domain'. Only alphanumerics, hyphens, and dots allowed."
+        exit 1
+    fi
+}
+
 # --- Rollback trap (D-17) ---
 cleanup() {
     local exit_code=$?
@@ -149,16 +158,27 @@ generate_env() {
     read -r -p "  Dashboard domain [dashboard.skillledger.dev]: " dash_domain
 
     if [ -n "$api_domain" ]; then
+        validate_domain "$api_domain"
         sed -i "s|^SKILLLEDGER_DOMAIN=.*|SKILLLEDGER_DOMAIN=${api_domain}|" .env
     fi
     if [ -n "$dash_domain" ]; then
+        validate_domain "$dash_domain"
         sed -i "s|^DASHBOARD_DOMAIN=.*|DASHBOARD_DOMAIN=${dash_domain}|" .env
     fi
 
-    # LOG_PRIVATE_KEY -- warn user to set manually
-    warn "LOG_PRIVATE_KEY is not auto-generated (requires Ed25519 key)."
-    warn "Generate one with: openssl genpkey -algorithm Ed25519 -out /tmp/logkey.pem"
-    warn "Then set LOG_PRIVATE_KEY in $INSTALL_DIR/.env"
+    # LOG_PRIVATE_KEY -- prompt user (CR-01: don't deploy with unset key)
+    echo ""
+    warn "LOG_PRIVATE_KEY is required for transparency log signing."
+    warn "Generate: openssl genpkey -algorithm Ed25519 -outform DER | base64 -w0"
+    echo ""
+    read -r -p "  Enter LOG_PRIVATE_KEY value (or press Enter to skip — log signing disabled): " log_key
+    if [ -n "$log_key" ]; then
+        sed -i "s|^LOG_PRIVATE_KEY=.*|LOG_PRIVATE_KEY=${log_key}|" .env
+        info "LOG_PRIVATE_KEY set."
+    else
+        warn "LOG_PRIVATE_KEY not set. Transparency log will start without signing capability."
+        warn "Set it later in $INSTALL_DIR/.env and restart: docker compose restart skillledger-log"
+    fi
 
     info ".env generated with random secrets."
 }
@@ -182,9 +202,20 @@ start_stack() {
     done
 
     echo ""
-    info "========================================="
-    info "  SkillLedger deployed successfully!"
-    info "========================================="
+    if [ $retries -ge $max_retries ]; then
+        warn "========================================="
+        warn "  Services not fully healthy after $((max_retries * 2))s"
+        warn "========================================="
+        warn "Check logs: docker compose -f docker-compose.yml -f docker-compose.prod.yml logs"
+        echo ""
+        docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+        echo ""
+        warn "Stack is running but may need attention. Check container status above."
+    else
+        info "========================================="
+        info "  SkillLedger deployed successfully!"
+        info "========================================="
+    fi
     echo ""
 
     # Print service URLs

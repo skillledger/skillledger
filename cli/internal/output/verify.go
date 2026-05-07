@@ -32,8 +32,8 @@ var (
 	verifyFailStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("1")) // red
 	verifyWarnStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("3")) // yellow
 	verifyInfoStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))            // cyan
-	stepPassIcon    = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render("PASS")
-	stepFailIcon    = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render("FAIL")
+	stepPassStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	stepFailStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 )
 
 // PrintVerifyResult writes a verification result to w in text or JSON format.
@@ -54,15 +54,17 @@ func PrintVerifyResult(w io.Writer, result *VerifyCheckResult, jsonMode bool) er
 	}
 
 	// Step-by-step details
+	passIcon := stepPassStyle.Render("PASS")
+	failIcon := stepFailStyle.Render("FAIL")
 	for _, step := range result.Steps {
 		if step.Passed {
-			fmt.Fprintf(w, "  [%s] %s", stepPassIcon, verifyInfoStyle.Render(step.Name))
+			fmt.Fprintf(w, "  [%s] %s", passIcon, verifyInfoStyle.Render(step.Name))
 			if step.Detail != "" {
 				fmt.Fprintf(w, " -- %s", step.Detail)
 			}
 			fmt.Fprintln(w)
 		} else {
-			fmt.Fprintf(w, "  [%s] %s", stepFailIcon, verifyInfoStyle.Render(step.Name))
+			fmt.Fprintf(w, "  [%s] %s", failIcon, verifyInfoStyle.Render(step.Name))
 			if step.Error != "" {
 				fmt.Fprintf(w, " -- %s", step.Error)
 			}

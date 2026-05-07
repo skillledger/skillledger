@@ -28,11 +28,17 @@ func PrintValidationResult(w io.Writer, result *ValidationResult, jsonMode bool)
 		return enc.Encode(result)
 	}
 	if result.Valid {
-		fmt.Fprintf(w, "VALID: %s (kind: %s)\n", result.File, result.Kind)
+		if _, err := fmt.Fprintf(w, "VALID: %s (kind: %s)\n", result.File, result.Kind); err != nil {
+			return err
+		}
 	} else {
-		fmt.Fprintf(w, "INVALID: %s\n", result.File)
+		if _, err := fmt.Fprintf(w, "INVALID: %s\n", result.File); err != nil {
+			return err
+		}
 		for _, e := range result.Errors {
-			fmt.Fprintf(w, "  - %s: %s\n", e.Path, e.Message)
+			if _, err := fmt.Fprintf(w, "  - %s: %s\n", e.Path, e.Message); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

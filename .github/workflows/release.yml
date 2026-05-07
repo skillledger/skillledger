@@ -12,7 +12,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Validate tag matches VERSION
         shell: bash
@@ -26,11 +26,11 @@ jobs:
           fi
           echo "VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version-file: cli/go.mod
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.3
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
@@ -65,7 +65,7 @@ jobs:
           node npm/scripts/build-packages.js
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@c062e08bd532815e2082a07e87904c5b5150f315 # v2.0.9
         with:
           files: |
             bin/skillledger-*

@@ -182,3 +182,81 @@ func TestHandler_OnRequest_NilBody(t *testing.T) {
 	require.Len(t, entries, 1)
 	assert.Equal(t, proxy.ActionAllow, entries[0].Decision)
 }
+
+func TestHandler_SkillIDFromHeader(t *testing.T) {
+	dl := proxy.NewDecisionLog(100)
+	patterns := proxy.LoadPatterns()
+	pipeline := proxy.NewScanPipeline(proxy.NewSecretScanner(patterns))
+	// Pass a PolicyConfig with no skill mappings -- header is the only source.
+	pc := proxy.DefaultPolicyConfig()
+	h := proxy.NewHandler(dl, pipeline, nil, nil, pc, zerolog.Nop())
+
+	req, err := http.NewRequest(http.MethodGet, "http://api.example.com/data", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-SkillLedger-SkillID", "test-skill-123")
+
+	ctx := &goproxy.ProxyCtx{Req: req}
+	returnedReq, resp := h.OnRequest(req, ctx)
+
+	// No capabilityEval, so SkillID is not used for enforcement, but header must be stripped.
+	assert.Nil(t, resp, "request should pass through")
+	// Header must be stripped before forwarding (information disclosure prevention).
+	assert.Empty(t, returnedReq.Header.Get("X-SkillLedger-SkillID"),
+		"X-SkillLedger-SkillID header must be stripped before forwarding")
+}
+
+func TestHandler_SkillIDFromMapping(t *testing.T) {
+	dl := proxy.NewDecisionLog(100)
+	patterns := proxy.LoadPatterns()
+	pipeline := proxy.NewScanPipeline(proxy.NewSecretScanner(patterns))
+	pc := proxy.DefaultPolicyConfig()
+	pc.SkillMappings = []proxy.SkillMapping{
+		{Pattern: "api.example.com", SkillID: "mapped-skill"},
+	}
+	h := proxy.NewHandler(dl, pipeline, nil, nil, pc, zerolog.Nop())
+
+	req, err := http.NewRequest(http.MethodGet, "http://api.example.com/data", nil)
+	require.NoError(t, err)
+	// No X-SkillLedger-SkillID header -- should fall back to mapping.
+
+	ctx := &goproxy.ProxyCtx{Req: req}
+	_, resp := h.OnRequest(req, ctx)
+
+	assert.Nil(t, resp, "request should pass through")
+}
+
+func TestHandler_SkillIDEmpty_FailClosed(t *testing.T) {
+	dl := proxy.NewDecisionLog(100)
+	patterns := proxy.LoadPatterns()
+	pipeline := proxy.NewScanPipeline(proxy.NewSecretScanner(patterns))
+	// No skill mappings, no header -> SkillID stays empty -> TrustUnverified (fail-closed per D-03).
+	pc := proxy.DefaultPolicyConfig()
+	h := proxy.NewHandler(dl, pipeline, nil, nil, pc, zerolog.Nop())
+
+	req, err := http.NewRequest(http.MethodGet, "http://unknown.example.com/data", nil)
+	require.NoError(t, err)
+
+	ctx := &goproxy.ProxyCtx{Req: req}
+	_, resp := h.OnRequest(req, ctx)
+
+	assert.Nil(t, resp, "request passes through (no capabilityEval to enforce)")
+	entries := dl.Recent(1)
+	require.Len(t, entries, 1)
+	// TrustTier should be empty (no TrustVerifier configured).
+	assert.Empty(t, entries[0].TrustTier)
+}
+
+func TestHandler_SkillIDHeaderStripped(t *testing.T) {
+	dl := proxy.NewDecisionLog(100)
+	h := proxy.NewHandler(dl, nil, nil, nil, nil, zerolog.Nop())
+
+	req, err := http.NewRequest(http.MethodGet, "http://api.example.com/data", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-SkillLedger-SkillID", "should-be-stripped")
+
+	ctx := &goproxy.ProxyCtx{Req: req}
+	returnedReq, _ := h.OnRequest(req, ctx)
+
+	assert.Empty(t, returnedReq.Header.Get("X-SkillLedger-SkillID"),
+		"SkillID header must be stripped even when no capabilityEval is configured")
+}

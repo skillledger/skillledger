@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"path"
 
 	"github.com/elazarl/goproxy"
 	"github.com/rs/zerolog"
@@ -95,8 +96,13 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 	// Phase 13: Determine trust tier and per-tier preset for capability evaluation.
 	var resolvedTrustTier string
 	if h.capabilityEval != nil {
+		// Phase 31: Resolve SkillID from header (D-01) or config mapping (D-02).
+		skillID := r.Header.Get("X-SkillLedger-SkillID")
+		if skillID == "" && h.policyConfig != nil {
+			skillID = resolveSkillIDFromMappings(r.URL.Host, h.policyConfig.SkillMappings)
+		}
 		action := RuntimeAction{
-			SkillID:     "", // HTTP proxy requests have no explicit skill ID; resolved in Phase 12+
+			SkillID:     skillID,
 			ActionType:  "http_request",
 			Destination: r.URL.Host,
 			Method:      r.Method,
@@ -164,6 +170,9 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 	}
 	logEvent.Msg("proxy request")
 
+	// Phase 31: Strip SkillID header before forwarding (information disclosure prevention, same pattern as T-09-04).
+	r.Header.Del("X-SkillLedger-SkillID")
+
 	// Strip protocol header before forwarding to destination (T-09-04).
 	StripProtocolHeader(r)
 
@@ -210,4 +219,15 @@ func (h *Handler) OnResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *http.R
 		Msg("proxy response")
 
 	return resp
+}
+
+// resolveSkillIDFromMappings matches a request host against config-based
+// hostname-to-skillID mappings. Returns "" when no mapping matches.
+func resolveSkillIDFromMappings(host string, mappings []SkillMapping) string {
+	for _, m := range mappings {
+		if matched, _ := path.Match(m.Pattern, host); matched {
+			return m.SkillID
+		}
+	}
+	return ""
 }

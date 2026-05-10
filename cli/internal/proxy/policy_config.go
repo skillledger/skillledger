@@ -2,16 +2,24 @@ package proxy
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// SkillMapping maps a hostname glob pattern to a skill ID for HTTP traffic.
+type SkillMapping struct {
+	Pattern string `yaml:"pattern"`  // glob pattern (path.Match syntax), e.g., "*.example.com"
+	SkillID string `yaml:"skill_id"` // skill ID to assign when pattern matches
+}
 
 // PolicyConfig controls how violation types map to proxy response actions.
 type PolicyConfig struct {
 	Preset          string            `yaml:"preset"`
 	ResponseActions map[string]string `yaml:"response_actions"`
 	Provenance      map[string]string `yaml:"provenance,omitempty"`
+	SkillMappings   []SkillMapping    `yaml:"skill_mappings,omitempty"`
 }
 
 // defaultResponseActions defines the default action for each violation type.
@@ -93,6 +101,19 @@ func LoadPolicyConfig(data []byte) (*PolicyConfig, error) {
 		}
 	}
 
+	// Validate skill mappings
+	for _, sm := range pc.SkillMappings {
+		if sm.Pattern == "" {
+			return nil, fmt.Errorf("skill_mapping: pattern must not be empty")
+		}
+		if sm.SkillID == "" {
+			return nil, fmt.Errorf("skill_mapping: skill_id must not be empty for pattern %q", sm.Pattern)
+		}
+		if _, err := path.Match(sm.Pattern, ""); err != nil {
+			return nil, fmt.Errorf("skill_mapping: invalid glob pattern %q: %w", sm.Pattern, err)
+		}
+	}
+
 	return &pc, nil
 }
 
@@ -131,6 +152,10 @@ func MergePolicyConfigs(base, override *PolicyConfig) *PolicyConfig {
 		}
 		result.Provenance[k] = v
 	}
+
+	// Merge skill mappings (concatenate base + override)
+	result.SkillMappings = append(result.SkillMappings, base.SkillMappings...)
+	result.SkillMappings = append(result.SkillMappings, override.SkillMappings...)
 
 	return result
 }

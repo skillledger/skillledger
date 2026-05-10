@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"sync/atomic"
 
 	"github.com/elazarl/goproxy"
 	"github.com/rs/zerolog"
@@ -22,9 +23,9 @@ const (
 type Handler struct {
 	decisionLog     *DecisionLog
 	pipeline        *ScanPipeline
-	capabilityEval  *RuntimeEvaluator
+	atomicCapEval   atomic.Value // stores *RuntimeEvaluator; reloaded on preset change
 	trustVerifier   *TrustVerifier
-	policyConfig    *PolicyConfig
+	atomicPolicy    atomic.Value // stores *PolicyConfig; hot-reloaded by server watcher
 	violationWriter *ViolationWriter
 	logger          zerolog.Logger
 }
@@ -33,14 +34,50 @@ type Handler struct {
 // optional RuntimeEvaluator for capability enforcement, optional TrustVerifier for
 // provenance-based trust tier lookup, and optional PolicyConfig for per-tier preset selection.
 func NewHandler(dl *DecisionLog, pipeline *ScanPipeline, capEval *RuntimeEvaluator, tv *TrustVerifier, pc *PolicyConfig, logger zerolog.Logger) *Handler {
-	return &Handler{
-		decisionLog:    dl,
-		pipeline:       pipeline,
-		capabilityEval: capEval,
-		trustVerifier:  tv,
-		policyConfig:   pc,
-		logger:         logger,
+	h := &Handler{
+		decisionLog:     dl,
+		pipeline:        pipeline,
+		trustVerifier:   tv,
+		violationWriter: nil,
+		logger:          logger,
 	}
+	// Store initial PolicyConfig (must Store before any Load to avoid nil panic).
+	if pc != nil {
+		h.atomicPolicy.Store(pc)
+	} else {
+		h.atomicPolicy.Store(DefaultPolicyConfig())
+	}
+	// Store initial RuntimeEvaluator (may be nil if capability enforcement disabled).
+	if capEval != nil {
+		h.atomicCapEval.Store(capEval)
+	}
+	return h
+}
+
+// getPolicyConfig returns the current PolicyConfig from the atomic store.
+func (h *Handler) getPolicyConfig() *PolicyConfig {
+	return h.atomicPolicy.Load().(*PolicyConfig)
+}
+
+// SetPolicyConfig atomically updates the handler's PolicyConfig.
+// Called by the server's policy watcher goroutine.
+func (h *Handler) SetPolicyConfig(pc *PolicyConfig) {
+	h.atomicPolicy.Store(pc)
+}
+
+// getCapabilityEval returns the current RuntimeEvaluator, or nil if not set.
+func (h *Handler) getCapabilityEval() *RuntimeEvaluator {
+	v := h.atomicCapEval.Load()
+	if v == nil {
+		return nil
+	}
+	return v.(*RuntimeEvaluator)
+}
+
+// SetCapabilityEval atomically updates the handler's RuntimeEvaluator.
+// Called by the server's policy watcher goroutine when preset changes.
+func (h *Handler) SetCapabilityEval(eval *RuntimeEvaluator) {
+	h.atomicCapEval.Store(eval)
 }
 
 // SetViolationWriter attaches a ViolationWriter to the handler.
@@ -95,11 +132,13 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 
 	// Phase 13: Determine trust tier and per-tier preset for capability evaluation.
 	var resolvedTrustTier string
-	if h.capabilityEval != nil {
+	capEval := h.getCapabilityEval()
+	if capEval != nil {
 		// Phase 31: Resolve SkillID from header (D-01) or config mapping (D-02).
+		pc := h.getPolicyConfig()
 		skillID := r.Header.Get("X-SkillLedger-SkillID")
-		if skillID == "" && h.policyConfig != nil {
-			skillID = resolveSkillIDFromMappings(r.URL.Host, h.policyConfig.SkillMappings)
+		if skillID == "" {
+			skillID = resolveSkillIDFromMappings(r.URL.Host, pc.SkillMappings)
 		}
 		action := RuntimeAction{
 			SkillID:     skillID,
@@ -113,11 +152,11 @@ func (h *Handler) OnRequest(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 			tier := h.trustVerifier.GetTier(action.SkillID)
 			resolvedTrustTier = string(tier)
 		}
-		if h.policyConfig != nil && resolvedTrustTier != "" {
-			presetOverride = h.policyConfig.ProvenancePresetFor(resolvedTrustTier)
+		if resolvedTrustTier != "" {
+			presetOverride = pc.ProvenancePresetFor(resolvedTrustTier)
 		}
 
-		capFindings := h.capabilityEval.Evaluate(r.Context(), action, resolvedTrustTier, presetOverride)
+		capFindings := capEval.Evaluate(r.Context(), action, resolvedTrustTier, presetOverride)
 		findings = append(findings, capFindings...)
 		if len(findings) > 0 {
 			decision = HighestDecision(findings)

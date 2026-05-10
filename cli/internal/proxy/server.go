@@ -11,8 +11,10 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/elazarl/goproxy"
+	"github.com/fsnotify/fsnotify"
 	"github.com/rs/zerolog"
 	"github.com/skillledger/skillledger/internal/ioc"
 	"github.com/skillledger/skillledger/internal/manifest"
@@ -71,6 +73,9 @@ type ProxyServer struct {
 	yaraRulesDir    string           // path to YARA rules directory
 	violationLogPath string          // path to violations.jsonl
 	violationWriter *ViolationWriter // append-only violation JSONL writer
+
+	// Phase 31: Policy hot-reload support.
+	policyFilePath string // path to policy.yaml for fsnotify watcher
 }
 
 // WithPort sets the proxy listen port.
@@ -273,6 +278,10 @@ func NewProxyServer(opts ...ServerOption) *ProxyServer {
 	if s.policyConfig == nil {
 		s.policyConfig = DefaultPolicyConfig()
 	}
+
+	// Phase 31: Set policy file path for hot-reload watcher.
+	// Well-known path: {baseDir}/proxy/policy.yaml
+	s.policyFilePath = filepath.Join(s.baseDir, "proxy", "policy.yaml")
 
 	// Load manifests from manifest directory.
 	manifests := make(map[string]*manifest.Manifest)
@@ -498,6 +507,13 @@ func (s *ProxyServer) Start(ctx context.Context) error {
 		s.logger.Warn().Err(err).Msg("failed to write port file")
 	}
 
+	// Phase 31: Start policy hot-reload watcher (RUNT-03).
+	if s.policyFilePath != "" {
+		if watchErr := s.startPolicyWatcher(ctx, s.policyFilePath); watchErr != nil {
+			s.logger.Warn().Err(watchErr).Msg("policy hot-reload watcher failed to start -- restart required for policy changes")
+		}
+	}
+
 	s.logger.Info().
 		Int("port", s.port).
 		Str("addr", ln.Addr().String()).
@@ -550,11 +566,115 @@ func (s *ProxyServer) Profiler() *Profiler { return s.profiler }
 // RuntimeEvaluator returns the capability evaluator instance.
 func (s *ProxyServer) RuntimeEvaluator() *RuntimeEvaluator { return s.capabilityEval }
 
-// PolicyConfig returns the active policy configuration.
-func (s *ProxyServer) PolicyConfig() *PolicyConfig { return s.policyConfig }
+// PolicyConfig returns the active policy configuration (reads from handler's atomic store).
+func (s *ProxyServer) PolicyConfig() *PolicyConfig {
+	if s.handler != nil {
+		return s.handler.getPolicyConfig()
+	}
+	return s.policyConfig
+}
 
 // TrustVerifier returns the trust verifier instance (nil if not configured).
 func (s *ProxyServer) TrustVerifier() *TrustVerifier { return s.trustVerifier }
+
+// startPolicyWatcher watches the policy config file for changes and reloads
+// the PolicyConfig atomically when the file is modified (RUNT-03).
+func (s *ProxyServer) startPolicyWatcher(ctx context.Context, configPath string) error {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("creating fsnotify watcher: %w", err)
+	}
+
+	// Watch directory (not file) to handle editor write-and-rename patterns (Pitfall 1).
+	dir := filepath.Dir(configPath)
+	if err := watcher.Add(dir); err != nil {
+		watcher.Close()
+		return fmt.Errorf("watching policy directory %s: %w", dir, err)
+	}
+
+	targetName := filepath.Base(configPath)
+
+	go func() {
+		defer watcher.Close()
+		var debounce *time.Timer
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				if filepath.Base(event.Name) != targetName {
+					continue
+				}
+				if !event.Has(fsnotify.Write) && !event.Has(fsnotify.Create) {
+					continue
+				}
+				// Debounce 200ms -- wait for CLI write to complete before parsing (Pitfall 4).
+				if debounce != nil {
+					debounce.Stop()
+				}
+				debounce = time.AfterFunc(200*time.Millisecond, func() {
+					s.reloadPolicyConfig(configPath)
+				})
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				s.logger.Warn().Err(err).Msg("fsnotify watcher error")
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	s.logger.Info().Str("config", configPath).Msg("policy hot-reload watcher started")
+	return nil
+}
+
+// reloadPolicyConfig reads and parses the policy file, then atomically swaps
+// the handler's PolicyConfig. On parse failure, keeps the old config (Pitfall 4).
+// When the preset changes, also reconstructs the RuntimeEvaluator so OPA
+// capability enforcement uses the new preset immediately.
+//
+// NOTE: Uses os.ReadFile instead of afero.Fs because fsnotify watches the real
+// filesystem. The watcher goroutine operates on real OS file events, so reading
+// through afero would add indirection with no testability benefit here. Integration
+// tests for hot-reload use real temp directories for the same reason.
+func (s *ProxyServer) reloadPolicyConfig(configPath string) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		s.logger.Warn().Err(err).Str("path", configPath).Msg("policy hot-reload: failed to read file")
+		return
+	}
+	newConfig, err := LoadPolicyConfig(data)
+	if err != nil {
+		s.logger.Warn().Err(err).Str("path", configPath).Msg("policy hot-reload: invalid YAML, keeping old config")
+		return
+	}
+	// Merge with defaults so partial configs work correctly.
+	merged := MergePolicyConfigs(DefaultPolicyConfig(), newConfig)
+
+	// Detect preset change: if the preset differs from the current config,
+	// reconstruct the RuntimeEvaluator so OPA evaluates against the new Rego.
+	oldConfig := s.handler.getPolicyConfig()
+	s.handler.SetPolicyConfig(merged)
+
+	if oldConfig.Preset != merged.Preset && s.capabilityEval != nil {
+		if reloadErr := s.capabilityEval.ReloadPolicy(merged.Preset, s.extraModules); reloadErr != nil {
+			s.logger.Warn().Err(reloadErr).
+				Str("old_preset", oldConfig.Preset).
+				Str("new_preset", merged.Preset).
+				Msg("policy hot-reload: failed to reload RuntimeEvaluator, capability enforcement uses old preset")
+		} else {
+			s.logger.Info().
+				Str("old_preset", oldConfig.Preset).
+				Str("new_preset", merged.Preset).
+				Msg("RuntimeEvaluator reloaded with new preset")
+		}
+	}
+
+	s.logger.Info().Str("preset", merged.Preset).Msg("policy hot-reloaded successfully")
+}
 
 func (s *ProxyServer) cleanup() {
 	// Phase 14: Close ViolationWriter.

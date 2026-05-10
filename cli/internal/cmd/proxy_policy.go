@@ -46,8 +46,8 @@ Actions: block, warn, log`,
 var proxyPolicyPresetCmd = &cobra.Command{
 	Use:   "preset <name>",
 	Short: "Set runtime policy preset (strict/moderate/permissive)",
-	Long: `Switches the active runtime policy preset. The change takes effect on the
-next proxy start. To persist, edit ~/.skillledger/proxy/policy.yaml.`,
+	Long: `Switches the active runtime policy preset. The change is picked up by a
+running proxy within a few seconds. To persist, edit ~/.skillledger/proxy/policy.yaml.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProxyPolicyPreset,
 }
@@ -164,7 +164,7 @@ func runProxyPolicySet(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Set %s -> %s (written to %s)\n", violationType, action, configPath)
-	fmt.Printf("Restart the proxy to apply: skillledger proxy start\n")
+	fmt.Printf("Policy will be applied within a few seconds.\n")
 
 	return nil
 }
@@ -203,7 +203,7 @@ func runProxyPolicyPreset(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Preset set to: %s (written to %s)\n", presetName, configPath)
-	fmt.Printf("Restart the proxy to apply: skillledger proxy start\n")
+	fmt.Printf("Policy will be applied within a few seconds.\n")
 
 	return nil
 }

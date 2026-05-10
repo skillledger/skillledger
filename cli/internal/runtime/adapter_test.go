@@ -89,3 +89,18 @@ func TestShimAdapter_Configure(t *testing.T) {
 	err := a.Configure(fs, runtime.ConfigureOpts{ProxyAddr: "http://127.0.0.1:8080"})
 	require.NoError(t, err)
 }
+
+func TestRegistryConfigure_AllAdapters(t *testing.T) {
+	reg := runtime.DefaultRuntimeRegistry()
+	fs := afero.NewMemMapFs()
+	opts := runtime.ConfigureOpts{
+		ProxyAddr: "http://127.0.0.1:8118",
+		CAPath:    "/tmp/test-ca.pem",
+	}
+	for _, adapter := range reg.All() {
+		t.Run(adapter.Kind(), func(t *testing.T) {
+			err := adapter.Configure(fs, opts)
+			require.NoError(t, err, "adapter %s Configure should succeed", adapter.Kind())
+		})
+	}
+}

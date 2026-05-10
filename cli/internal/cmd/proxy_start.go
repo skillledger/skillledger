@@ -16,6 +16,7 @@ import (
 	"github.com/skillledger/skillledger/internal/policy/dsl"
 	"github.com/skillledger/skillledger/internal/proxy"
 	"github.com/skillledger/skillledger/internal/report"
+	"github.com/skillledger/skillledger/internal/runtime"
 	"github.com/skillledger/skillledger/internal/signer"
 	"github.com/skillledger/skillledger/internal/tlog"
 	"github.com/skillledger/skillledger/internal/verify"
@@ -185,6 +186,24 @@ func runProxyStart(cmd *cobra.Command, args []string) error {
 	opts = append(opts, proxy.WithViolationLog(violationLogPath))
 
 	server := proxy.NewProxyServer(opts...)
+
+	// Phase 31: Initialize runtime adapters (RUNT-02, per D-04).
+	// One-time setup; adapters configure process environment for their ecosystem.
+	// Per D-05: NOT per-request -- adapters handle one-time setup only.
+	// Per D-06: DefaultRuntimeRegistry provides HTTP, MCP Stdio, Shim adapters.
+	runtimeRegistry := runtime.DefaultRuntimeRegistry()
+	proxyAddr := fmt.Sprintf("http://127.0.0.1:%d", port)
+	caPath := proxy.CACertPath(baseDir)
+	for _, adapter := range runtimeRegistry.All() {
+		if err := adapter.Configure(afero.NewOsFs(), runtime.ConfigureOpts{
+			ProxyAddr: proxyAddr,
+			CAPath:    caPath,
+		}); err != nil {
+			log.Warn().Err(err).Str("adapter", adapter.Kind()).Msg("failed to configure runtime adapter")
+		} else {
+			log.Info().Str("adapter", adapter.Kind()).Msg("runtime adapter configured")
+		}
+	}
 
 	log.Info().Int("port", port).Msgf("Starting proxy on 127.0.0.1:%d", port)
 	log.Info().Str("ca_cert", proxy.CACertPath(baseDir)).Msg("CA certificate location")

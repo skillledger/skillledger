@@ -1,0 +1,131 @@
+name: Bug Report
+description: Report a reproducible defect in SkillLedger.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill in the
+        sections below so we can reproduce and fix the issue quickly.
+
+        **Security vulnerabilities:** do NOT file them here. Use the private
+        disclosure process in [SECURITY.md](../blob/main/SECURITY.md).
+
+  - type: checkboxes
+    id: prechecks
+    attributes:
+      label: Pre-flight checks
+      description: Please confirm the following before submitting.
+      options:
+        - label: I have searched [existing issues](https://github.com/skillledger/skillledger/issues?q=is%3Aissue) and could not find a duplicate.
+          required: true
+        - label: I have read the [CONTRIBUTING guide](../blob/main/CONTRIBUTING.md).
+          required: true
+        - label: This is not a security vulnerability (those go through [SECURITY.md](../blob/main/SECURITY.md)).
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: SkillLedger version
+      description: Output of `skillledger --version`. Include the commit SHA if you built from source.
+      placeholder: "e.g. v3.1.0 (commit b3a19aa)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: Which part of SkillLedger is the bug in?
+      options:
+        - "cli (audit / build / sign / verify / publish)"
+        - "cli (proxy / runtime)"
+        - "cli (policy engine)"
+        - "service (FastAPI / transparency log)"
+        - "service ee (org / SSO / billing)"
+        - "dashboard (Next.js)"
+        - "hooks (claude-code / mcp / npm / openclaw / generic)"
+        - "deployment (docker-compose / Caddy / install.sh)"
+        - "schemas / spec"
+        - "threat library"
+        - "ci / github actions"
+        - "docs"
+        - "other / not sure"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and architecture
+      placeholder: "e.g. macOS 14.5 arm64, Ubuntu 24.04 x86_64, Windows 11"
+    validations:
+      required: true
+
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime versions (where relevant)
+      description: Go, Python, Node, Docker, etc.
+      placeholder: "e.g. Go 1.26.0, Python 3.12.5, Node 20.10, Docker 27.1"
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command that triggered the bug
+      description: Paste the full command line including flags and any relevant env vars.
+      render: bash
+      placeholder: |
+        SKILLLEDGER_DEBUG=1 skillledger verify \
+          --artifact dist/my-skill.skillledger.tar.gz \
+          --preset moderate
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What actually happened? Include the full error message.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: |
+        Step-by-step instructions or a link to a minimal repo / manifest that
+        reproduces the issue. Issues without a reproduction may be closed
+        pending more information.
+      placeholder: |
+        1. Clone https://github.com/example/minimal-repro
+        2. Run `skillledger ...`
+        3. Observe `...`
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output
+      description: |
+        Run with `SKILLLEDGER_DEBUG=1` for verbose logs. Redact any secrets
+        before pasting.
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Anything else that might help — screenshots, related issues, recent changes you made.

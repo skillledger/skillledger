@@ -1,1 +1,53 @@
-threat-library/ @rishikeshranjan
+# CODEOWNERS for skillledger/skillledger
+#
+# Default reviewer for everything not matched by a more specific rule.
+* @ranjanrishikesh
+
+# CLI (Go)
+/cli/                                       @ranjanrishikesh
+/cli/internal/proxy/                        @ranjanrishikesh
+/cli/internal/signer/                       @ranjanrishikesh
+/cli/internal/tlog/                         @ranjanrishikesh
+/cli/internal/policy/                       @ranjanrishikesh
+/cli/internal/verify/                       @ranjanrishikesh
+
+# Transparency log personality
+/log/                                       @ranjanrishikesh
+
+# Hosted service (Python / FastAPI)
+/service/                                   @ranjanrishikesh
+/service/src/skillledger_service/ee/        @ranjanrishikesh
+/service/alembic/                           @ranjanrishikesh
+
+# Dashboard (Next.js / TypeScript)
+/dashboard/                                 @ranjanrishikesh
+
+# Shell hooks
+/hooks/                                     @ranjanrishikesh
+
+# Spec / schemas
+/spec/                                      @ranjanrishikesh
+
+# Threat library
+/threat-library/                            @ranjanrishikesh
+
+# Deployment templates
+/deploy/                                    @ranjanrishikesh
+/docker-compose*.yml                        @ranjanrishikesh
+/Caddyfile*                                 @ranjanrishikesh
+/render.yaml                                @ranjanrishikesh
+
+# CI / build infrastructure
+/.github/                                   @ranjanrishikesh
+/.github/workflows/                         @ranjanrishikesh
+/Makefile                                   @ranjanrishikesh
+/Taskfile.yml                               @ranjanrishikesh
+
+# Top-level governance / security docs - require maintainer review
+/LICENSE                                    @ranjanrishikesh
+/service/src/skillledger_service/ee/LICENSE @ranjanrishikesh
+/SECURITY.md                                @ranjanrishikesh
+/CODE_OF_CONDUCT.md                         @ranjanrishikesh
+/CONTRIBUTING.md                            @ranjanrishikesh
+/CHANGELOG.md                               @ranjanrishikesh
+/README.md                                  @ranjanrishikesh

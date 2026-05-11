@@ -7,8 +7,8 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const coreSchemaURI = "https://skillledger.dev/schemas/v0.1/core.schema.json"
-const schemaBaseURI = "https://skillledger.dev/schemas/v0.1/"
+const coreSchemaURI = "https://skillledger.in/schemas/v0.1/core.schema.json"
+const schemaBaseURI = "https://skillledger.in/schemas/v0.1/"
 
 // Validator validates JSON data against the SkillLedger core schema.
 type Validator struct {

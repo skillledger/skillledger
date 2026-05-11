@@ -67,7 +67,7 @@ This produces a single canonical byte sequence for any given manifest, regardles
 
 ## Schema URIs
 
-All schemas are published under `https://skillledger.dev/schemas/v0.1/`:
+All schemas are published under `https://skillledger.in/schemas/v0.1/`:
 
 - `core.schema.json` -- Main manifest schema
 - `capabilities.schema.json` -- Capability declarations

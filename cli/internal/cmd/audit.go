@@ -324,7 +324,7 @@ func init() {
 	auditCmd.Flags().StringP("output", "o", "", "write output to file instead of stdout")
 	auditCmd.Flags().Bool("live-ioc", false, "fetch latest IOC list from SkillLedger API")
 	auditCmd.Flags().String("yara-rules", "", "path to directory of .yar rule files")
-	auditCmd.Flags().String("ioc-api-url", "https://api.skillledger.dev/v1/ioc", "IOC API endpoint URL")
+	auditCmd.Flags().String("ioc-api-url", "https://api.skillledger.in/v1/ioc", "IOC API endpoint URL")
 	_ = auditCmd.Flags().MarkHidden("ioc-api-url")
 	rootCmd.AddCommand(auditCmd)
 }

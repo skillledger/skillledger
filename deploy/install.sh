@@ -157,8 +157,8 @@ generate_env() {
     echo -e "  Enter your domain name (e.g., skillledger.example.com)"
     echo -e "  Leave empty to use the default values from .env.example."
     echo ""
-    read -r -p "  API domain [log.skillledger.dev]: " api_domain
-    read -r -p "  Dashboard domain [dashboard.skillledger.dev]: " dash_domain
+    read -r -p "  API domain [api.skillledger.in]: " api_domain
+    read -r -p "  Dashboard domain [app.skillledger.in]: " dash_domain
 
     if [ -n "$api_domain" ]; then
         validate_domain "$api_domain"

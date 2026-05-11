@@ -121,7 +121,7 @@ func (d *Database) FetchUpdates(apiURL string) error {
 	if parsed.Scheme != "https" {
 		return fmt.Errorf("IOC API URL must use HTTPS, got %q", parsed.Scheme)
 	}
-	allowedHosts := []string{"api.skillledger.dev"}
+	allowedHosts := []string{"api.skillledger.in"}
 	hostAllowed := false
 	for _, h := range allowedHosts {
 		if parsed.Hostname() == h {

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skillledger.dev/schemas/v0.1/profiles/opencode.schema.json",
+  "$id": "https://skillledger.in/schemas/v0.1/profiles/opencode.schema.json",
   "title": "OpenCode Profile",
   "description": "Profile fields for OpenCode plugins",
   "type": "object",

@@ -111,6 +111,6 @@ export SKILLLEDGER_POLICY=strict
 ### Pointing to a Hosted Service
 
 ```bash
-export SKILLLEDGER_SERVICE_URL=https://log.skillledger.dev
+export SKILLLEDGER_SERVICE_URL=https://api.skillledger.in
 ./hooks/mcp-hook.sh path/to/artifact
 ```

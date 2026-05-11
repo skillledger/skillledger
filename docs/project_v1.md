@@ -444,6 +444,6 @@ skillLedger/
 **Test coverage:** Go CLI (20 packages, all passing), Python service (20 tests, all passing).
 
 **Known gaps:**
-- Live deployment at log.skillledger.dev (infrastructure code is complete, needs DNS + server provisioning)
+- Live deployment at api.skillledger.in (infrastructure code is complete, needs DNS + server provisioning)
 - CLI binary download checksum verification in CI actions (deferred — HTTPS only for now)
 - Symlink detection in file collector uses `LstatIfPossible` which falls back to `Stat` on non-OS filesystems

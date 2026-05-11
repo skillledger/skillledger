@@ -29,7 +29,7 @@ _LICENSE_KEY = "test-license-key-integration"
 _LICENSE_HASH = hashlib.sha256(_LICENSE_KEY.encode()).hexdigest()
 os.environ["SKILLLEDGER_EE_LICENSE_KEY"] = _LICENSE_KEY
 os.environ["SKILLLEDGER_EE_LICENSE_HASH"] = _LICENSE_HASH
-os.environ["SKILLLEDGER_SERVICE_URL"] = "https://app.skillledger.dev"
+os.environ["SKILLLEDGER_SERVICE_URL"] = "https://app.skillledger.in"
 
 
 def _make_licensed_app():

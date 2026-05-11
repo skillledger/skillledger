@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skillledger.dev/schemas/v0.1/capabilities.schema.json",
+  "$id": "https://skillledger.in/schemas/v0.1/capabilities.schema.json",
   "title": "Capability Manifest",
   "description": "Declares permissions the skill requires. Undeclared capabilities are denied.",
   "type": "object",

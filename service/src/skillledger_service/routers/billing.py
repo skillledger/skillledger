@@ -66,8 +66,8 @@ async def create_checkout_session(
             "mode": "subscription",
             "customer": stripe_customer_id,
             "line_items": [{"price": settings.stripe_price_id}],
-            "success_url": "https://skillledger.dev/billing/success",
-            "cancel_url": "https://skillledger.dev/billing/cancel",
+            "success_url": "https://skillledger.in/billing/success",
+            "cancel_url": "https://skillledger.in/billing/cancel",
         }
     )
 
@@ -95,7 +95,7 @@ async def create_portal_session(
     portal_session = client.billing_portal.sessions.create(
         params={
             "customer": sub.stripe_customer_id,
-            "return_url": "https://skillledger.dev",
+            "return_url": "https://skillledger.in",
         }
     )
 

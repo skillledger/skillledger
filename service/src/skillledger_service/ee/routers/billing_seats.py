@@ -104,7 +104,7 @@ async def get_billing_info(
             portal_session = client.billing_portal.sessions.create(
                 params={
                     "customer": seat.stripe_customer_id,
-                    "return_url": "https://skillledger.dev",
+                    "return_url": "https://skillledger.in",
                 }
             )
             portal_url = portal_session.url

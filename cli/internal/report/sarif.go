@@ -17,21 +17,21 @@ import (
 func GenerateSARIF(w io.Writer, results []scanner.ScanResult) error {
 	r := report.NewV210Report()
 
-	run := sarif.NewRunWithInformationURI("skillledger", "https://skillledger.dev")
+	run := sarif.NewRunWithInformationURI("skillledger", "https://skillledger.in")
 
 	// Register IOC rule with all GitHub-required fields.
 	run.AddRule("SL001").
 		WithShortDescription(sarif.NewMultiformatMessageString().WithText("Skill matches known-compromised IOC hash")).
 		WithFullDescription(sarif.NewMultiformatMessageString().WithText("The skill artifact SHA-256 hash matches a known indicator of compromise from the IOC database. This skill should not be installed or used.")).
-		WithHelp(sarif.NewMultiformatMessageString().WithText("Run 'skillledger audit' for full IOC details. See https://skillledger.dev/docs/ioc for the IOC database format.")).
-		WithHelpURI("https://skillledger.dev/docs/ioc")
+		WithHelp(sarif.NewMultiformatMessageString().WithText("Run 'skillledger audit' for full IOC details. See https://skillledger.in/docs/ioc for the IOC database format.")).
+		WithHelpURI("https://skillledger.in/docs/ioc")
 
 	// Register YARA rule with all GitHub-required fields.
 	run.AddRule("SL002").
 		WithShortDescription(sarif.NewMultiformatMessageString().WithText("Skill matches YARA detection rule")).
 		WithFullDescription(sarif.NewMultiformatMessageString().WithText("The skill artifact matched a YARA detection rule during audit scanning. Review the matched rule and skill contents.")).
-		WithHelp(sarif.NewMultiformatMessageString().WithText("Custom YARA rules can be placed in the rules directory. See https://skillledger.dev/docs/yara for rule format.")).
-		WithHelpURI("https://skillledger.dev/docs/yara")
+		WithHelp(sarif.NewMultiformatMessageString().WithText("Custom YARA rules can be placed in the rules directory. See https://skillledger.in/docs/yara for rule format.")).
+		WithHelpURI("https://skillledger.in/docs/yara")
 
 	for _, res := range results {
 		if res.IOCMatch != nil {

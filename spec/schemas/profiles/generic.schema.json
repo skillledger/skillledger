@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skillledger.dev/schemas/v0.1/profiles/generic.schema.json",
+  "$id": "https://skillledger.in/schemas/v0.1/profiles/generic.schema.json",
   "title": "Generic Profile",
   "description": "Profile fields for generic or unrecognized skill ecosystems",
   "type": "object",

@@ -15,7 +15,7 @@ os.environ["SKILLLEDGER_LOG_URL"] = "http://fake-log:2025"
 os.environ.setdefault("SKILLLEDGER_ADMIN_API_KEY", "test-admin-key-saml")
 os.environ.setdefault("SKILLLEDGER_RESEND_API_KEY", "re_test_fake")
 os.environ["SKILLLEDGER_JWT_SECRET"] = "test-secret-saml"
-os.environ["SKILLLEDGER_SERVICE_URL"] = "https://app.skillledger.dev"
+os.environ["SKILLLEDGER_SERVICE_URL"] = "https://app.skillledger.in"
 
 _LICENSE_KEY = "test-license-key-saml"
 _LICENSE_HASH = hashlib.sha256(_LICENSE_KEY.encode()).hexdigest()

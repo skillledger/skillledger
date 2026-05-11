@@ -2,12 +2,12 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
 # Prerequisites:
-#   - Set SKILLLEDGER_DOMAIN (default: log.skillledger.dev)
+#   - Set SKILLLEDGER_DOMAIN (default: api.skillledger.in)
 #   - Set SKILLLEDGER_ADMIN_API_KEY for bootstrap publisher creation
 #   - Set POSTGRES_PASSWORD for database security
 #   - Set AUTH_SECRET for dashboard session encryption (openssl rand -base64 32)
 #   - DNS A record pointing SKILLLEDGER_DOMAIN to server IP
-#   - DNS A record pointing DASHBOARD_DOMAIN to server IP (default: dashboard.skillledger.dev)
+#   - DNS A record pointing DASHBOARD_DOMAIN to server IP (default: app.skillledger.in)
 
 services:
   caddy:
@@ -24,8 +24,8 @@ services:
       - skillledger-service
       - skillledger-dashboard
     environment:
-      - DOMAIN=${SKILLLEDGER_DOMAIN:-log.skillledger.dev}
-      - DASHBOARD_DOMAIN=${DASHBOARD_DOMAIN:-dashboard.skillledger.dev}
+      - DOMAIN=${SKILLLEDGER_DOMAIN:-api.skillledger.in}
+      - DASHBOARD_DOMAIN=${DASHBOARD_DOMAIN:-app.skillledger.in}
 
   skillledger-service:
     ports:
@@ -34,8 +34,8 @@ services:
       - SKILLLEDGER_DEBUG=false
       - SKILLLEDGER_ADMIN_API_KEY=${SKILLLEDGER_ADMIN_API_KEY:?Set SKILLLEDGER_ADMIN_API_KEY}
       - SKILLLEDGER_JWT_SECRET=${SKILLLEDGER_JWT_SECRET:?Set SKILLLEDGER_JWT_SECRET}
-      - SKILLLEDGER_DASHBOARD_URL=https://${DASHBOARD_DOMAIN:-dashboard.skillledger.dev}
-      - 'SKILLLEDGER_CORS_ORIGINS=["https://${SKILLLEDGER_DOMAIN:-log.skillledger.dev}"]'
+      - SKILLLEDGER_DASHBOARD_URL=https://${DASHBOARD_DOMAIN:-app.skillledger.in}
+      - 'SKILLLEDGER_CORS_ORIGINS=["https://${SKILLLEDGER_DOMAIN:-api.skillledger.in}"]'
 
   skillledger-log:
     ports:
@@ -46,8 +46,8 @@ services:
       - "127.0.0.1:3000:3000"  # Only accessible via Caddy, not directly
     environment:
       - AUTH_SECRET=${AUTH_SECRET:?Set AUTH_SECRET}
-      - AUTH_URL=https://${DASHBOARD_DOMAIN:-dashboard.skillledger.dev}
-      - NEXT_PUBLIC_API_URL=https://${SKILLLEDGER_DOMAIN:-log.skillledger.dev}
+      - AUTH_URL=https://${DASHBOARD_DOMAIN:-app.skillledger.in}
+      - NEXT_PUBLIC_API_URL=https://${SKILLLEDGER_DOMAIN:-api.skillledger.in}
       - API_URL=http://skillledger-service:8000
       - AUTH_TRUST_HOST=true
 

@@ -11,7 +11,7 @@
     }
 }
 
-{$DASHBOARD_DOMAIN:dashboard.skillledger.dev} {
+{$DASHBOARD_DOMAIN:app.skillledger.in} {
     reverse_proxy skillledger-dashboard:3000
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"

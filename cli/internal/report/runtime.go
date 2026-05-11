@@ -33,7 +33,7 @@ var runtimeRules = map[string]RuntimeRule{
 		ShortDescription: "Secret exfiltration detected",
 		FullDescription:  "Outbound request contains API key or token pattern sent to undeclared destination",
 		HelpText:         "Review the flagged request for secret material. Rotate any exposed credentials immediately.",
-		HelpURI:          "https://skillledger.dev/docs/runtime/secret",
+		HelpURI:          "https://skillledger.in/docs/runtime/secret",
 		DefaultLevel:     "error",
 	},
 	"network": {
@@ -41,7 +41,7 @@ var runtimeRules = map[string]RuntimeRule{
 		ShortDescription: "Malicious destination detected",
 		FullDescription:  "Outbound request to known-malicious domain from IOC database",
 		HelpText:         "The destination matched a known-malicious indicator. Block this traffic and investigate the skill.",
-		HelpURI:          "https://skillledger.dev/docs/runtime/network",
+		HelpURI:          "https://skillledger.in/docs/runtime/network",
 		DefaultLevel:     "error",
 	},
 	"injection": {
@@ -49,7 +49,7 @@ var runtimeRules = map[string]RuntimeRule{
 		ShortDescription: "Prompt injection pattern detected",
 		FullDescription:  "Tool output contains prompt injection patterns",
 		HelpText:         "Inspect the tool output for injection attempts. Consider restricting this skill's permissions.",
-		HelpURI:          "https://skillledger.dev/docs/runtime/injection",
+		HelpURI:          "https://skillledger.in/docs/runtime/injection",
 		DefaultLevel:     "warning",
 	},
 	"capability": {
@@ -57,7 +57,7 @@ var runtimeRules = map[string]RuntimeRule{
 		ShortDescription: "Capability policy violation",
 		FullDescription:  "Skill action not declared in capability manifest",
 		HelpText:         "The skill performed an action not declared in its manifest. Update the manifest or restrict the skill.",
-		HelpURI:          "https://skillledger.dev/docs/runtime/capability",
+		HelpURI:          "https://skillledger.in/docs/runtime/capability",
 		DefaultLevel:     "note",
 	},
 	"pinchange": {
@@ -65,7 +65,7 @@ var runtimeRules = map[string]RuntimeRule{
 		ShortDescription: "MCP tool description change",
 		FullDescription:  "MCP server changed tool description between sessions",
 		HelpText:         "Tool descriptions should be stable. A change may indicate tool-poisoning. Verify with the MCP server maintainer.",
-		HelpURI:          "https://skillledger.dev/docs/runtime/pinchange",
+		HelpURI:          "https://skillledger.in/docs/runtime/pinchange",
 		DefaultLevel:     "warning",
 	},
 	"yara": {
@@ -73,7 +73,7 @@ var runtimeRules = map[string]RuntimeRule{
 		ShortDescription: "YARA rule match in runtime traffic",
 		FullDescription:  "Custom YARA rule matched in proxy traffic",
 		HelpText:         "A custom YARA detection rule matched traffic content. Review the matched rule and traffic.",
-		HelpURI:          "https://skillledger.dev/docs/runtime/yara",
+		HelpURI:          "https://skillledger.in/docs/runtime/yara",
 		DefaultLevel:     "warning",
 	},
 	"dns-exfil": {
@@ -81,7 +81,7 @@ var runtimeRules = map[string]RuntimeRule{
 		ShortDescription: "DNS exfiltration attempt",
 		FullDescription:  "Data encoded in DNS subdomain queries",
 		HelpText:         "Suspicious DNS queries detected that may encode exfiltrated data in subdomains.",
-		HelpURI:          "https://skillledger.dev/docs/runtime/dns_exfil",
+		HelpURI:          "https://skillledger.in/docs/runtime/dns_exfil",
 		DefaultLevel:     "error",
 	},
 	"entropy": {
@@ -89,7 +89,7 @@ var runtimeRules = map[string]RuntimeRule{
 		ShortDescription: "Cumulative entropy anomaly",
 		FullDescription:  "Slow-drip exfiltration detected via entropy tracking",
 		HelpText:         "Cumulative entropy of outbound traffic exceeds threshold, indicating potential slow exfiltration.",
-		HelpURI:          "https://skillledger.dev/docs/runtime/entropy",
+		HelpURI:          "https://skillledger.in/docs/runtime/entropy",
 		DefaultLevel:     "warning",
 	},
 }
@@ -100,7 +100,7 @@ var unknownRule = RuntimeRule{
 	ShortDescription: "Unknown scanner finding",
 	FullDescription:  "A finding from an unrecognized scanner was reported",
 	HelpText:         "This finding came from a scanner not in the built-in registry. Review manually.",
-	HelpURI:          "https://skillledger.dev/docs/runtime/unknown",
+	HelpURI:          "https://skillledger.in/docs/runtime/unknown",
 	DefaultLevel:     "warning",
 }
 
@@ -141,7 +141,7 @@ func fingerprintForFinding(f proxy.Finding, trustTier string) string {
 func GenerateRuntimeSARIF(w io.Writer, entries []proxy.DecisionEntry) error {
 	r := report.NewV210Report()
 
-	run := sarif.NewRunWithInformationURI("skillledger-runtime", "https://skillledger.dev")
+	run := sarif.NewRunWithInformationURI("skillledger-runtime", "https://skillledger.in")
 
 	// Register all rules from the registry with GitHub-required fields.
 	// Sort keys for deterministic SARIF output.

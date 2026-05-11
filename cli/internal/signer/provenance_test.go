@@ -75,7 +75,7 @@ func TestProvenance_BuilderID(t *testing.T) {
 	builder, ok := runDetails["builder"].(map[string]interface{})
 	require.True(t, ok, "builder should be a map")
 
-	assert.Equal(t, "https://skillledger.dev/SkillBuilder/v1", builder["id"])
+	assert.Equal(t, "https://skillledger.in/SkillBuilder/v1", builder["id"])
 }
 
 func TestProvenance_BuildType(t *testing.T) {
@@ -87,7 +87,7 @@ func TestProvenance_BuildType(t *testing.T) {
 	buildDef, ok := predicate["buildDefinition"].(map[string]interface{})
 	require.True(t, ok, "buildDefinition should be a map")
 
-	assert.Equal(t, "https://skillledger.dev/SkillBuild/v1", buildDef["buildType"])
+	assert.Equal(t, "https://skillledger.in/SkillBuild/v1", buildDef["buildType"])
 }
 
 func TestProvenance_SourceRepository(t *testing.T) {

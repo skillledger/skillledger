@@ -11,7 +11,7 @@ import (
 func TestResolveServiceURL_Default(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("service-url", defaultServiceURL, "test")
-	assert.Equal(t, "https://api.skillledger.dev", resolveServiceURL(cmd, "service-url"))
+	assert.Equal(t, "https://api.skillledger.in", resolveServiceURL(cmd, "service-url"))
 }
 
 func TestResolveServiceURL_EnvOverride(t *testing.T) {

@@ -45,7 +45,7 @@ func Publish(ctx context.Context, input PublishInput) (*PublishResult, error) {
 
 	serviceURL := input.ServiceURL
 	if serviceURL == "" {
-		serviceURL = "https://api.skillledger.dev"
+		serviceURL = "https://api.skillledger.in"
 	}
 
 	opts := []Option{WithServiceURL(serviceURL)}

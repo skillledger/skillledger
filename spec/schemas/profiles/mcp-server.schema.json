@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skillledger.dev/schemas/v0.1/profiles/mcp-server.schema.json",
+  "$id": "https://skillledger.in/schemas/v0.1/profiles/mcp-server.schema.json",
   "title": "MCP Server Profile",
   "description": "Profile fields for Model Context Protocol servers",
   "type": "object",

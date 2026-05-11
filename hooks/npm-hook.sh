@@ -9,13 +9,13 @@
 #
 # Environment variables:
 #   SKILLLEDGER_POLICY     - Policy preset (default: moderate)
-#   SKILLLEDGER_SERVICE_URL - Transparency log URL (default: https://log.skillledger.dev)
+#   SKILLLEDGER_SERVICE_URL - Transparency log URL (default: https://api.skillledger.in)
 #   SKILLLEDGER_SKIP_TLOG  - Set to "true" for offline mode
 set -euo pipefail
 
 ARTIFACT="${1:?Usage: npm-hook.sh <artifact-path>}"
 POLICY="${SKILLLEDGER_POLICY:-moderate}"
-SERVICE_URL="${SKILLLEDGER_SERVICE_URL:-https://log.skillledger.dev}"
+SERVICE_URL="${SKILLLEDGER_SERVICE_URL:-https://api.skillledger.in}"
 SKIP_TLOG="${SKILLLEDGER_SKIP_TLOG:-false}"
 
 # Validate service URL uses HTTPS (except localhost for development)

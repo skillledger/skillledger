@@ -10,7 +10,7 @@ on:
         description: 'SkillLedger service URL'
         required: false
         type: string
-        default: 'https://log.skillledger.dev'
+        default: 'https://api.skillledger.in'
       cli-version:
         description: 'SkillLedger CLI version'
         required: false

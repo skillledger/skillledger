@@ -79,7 +79,7 @@ func makeTestStatement(t *testing.T) *intoto.Statement {
 	t.Helper()
 	predicate, err := structpb.NewStruct(map[string]interface{}{
 		"buildDefinition": map[string]interface{}{
-			"buildType": "https://skillledger.dev/SkillBuild/v1",
+			"buildType": "https://skillledger.in/SkillBuild/v1",
 		},
 	})
 	require.NoError(t, err)

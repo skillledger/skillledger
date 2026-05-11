@@ -51,7 +51,7 @@ func CreateProvenance(input ProvenanceInput) (*intoto.Statement, error) {
 
 	predicate, err := structpb.NewStruct(map[string]interface{}{
 		"buildDefinition": map[string]interface{}{
-			"buildType": "https://skillledger.dev/SkillBuild/v1",
+			"buildType": "https://skillledger.in/SkillBuild/v1",
 			"externalParameters": map[string]interface{}{
 				"repository": input.Repository,
 				"ref":        input.Ref,
@@ -68,7 +68,7 @@ func CreateProvenance(input ProvenanceInput) (*intoto.Statement, error) {
 		},
 		"runDetails": map[string]interface{}{
 			"builder": map[string]interface{}{
-				"id": "https://skillledger.dev/SkillBuilder/v1",
+				"id": "https://skillledger.in/SkillBuilder/v1",
 				"version": map[string]interface{}{
 					"skillledger": input.BuilderVersion,
 				},

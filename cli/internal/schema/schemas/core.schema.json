@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skillledger.dev/schemas/v0.1/core.schema.json",
+  "$id": "https://skillledger.in/schemas/v0.1/core.schema.json",
   "title": "SkillLedger Artifact Manifest",
   "description": "Universal manifest format for AI agent skill artifacts",
   "type": "object",

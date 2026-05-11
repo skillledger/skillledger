@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const defaultServiceURL = "https://api.skillledger.dev"
+const defaultServiceURL = "https://api.skillledger.in"
 
 // resolveServiceURL returns the effective service URL using precedence:
 // explicit --service-url flag > SKILLLEDGER_SERVICE_URL env var > built-in default.

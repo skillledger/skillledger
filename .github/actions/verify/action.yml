@@ -7,7 +7,7 @@ inputs:
   service-url:
     description: 'SkillLedger transparency log service URL'
     required: false
-    default: 'https://log.skillledger.dev'
+    default: 'https://api.skillledger.in'
   policy-preset:
     description: 'Policy preset to apply (strict, moderate, permissive)'
     required: false

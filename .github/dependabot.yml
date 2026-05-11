@@ -1,0 +1,130 @@
+# Dependabot version updates for SkillLedger
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+
+updates:
+  # Go - CLI
+  - package-ecosystem: gomod
+    directory: /cli
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    labels: [dependencies, go]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    groups:
+      patch-and-minor:
+        update-types: [patch, minor]
+
+  # Go - transparency log personality
+  - package-ecosystem: gomod
+    directory: /log
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    labels: [dependencies, go]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    groups:
+      patch-and-minor:
+        update-types: [patch, minor]
+
+  # Python service
+  - package-ecosystem: pip
+    directory: /service
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    labels: [dependencies, python]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    groups:
+      patch-and-minor:
+        update-types: [patch, minor]
+
+  # Dashboard
+  - package-ecosystem: npm
+    directory: /dashboard
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    labels: [dependencies, javascript]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    ignore:
+      - dependency-name: next-auth
+        update-types: [version-update:semver-major]
+    groups:
+      patch-and-minor:
+        update-types: [patch, minor]
+
+  # npm distribution wrapper
+  - package-ecosystem: npm
+    directory: /npm/skillledger
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 3
+    labels: [dependencies, javascript]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  # Docker images referenced from compose files
+  - package-ecosystem: docker
+    directory: /service
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    labels: [dependencies, docker]
+
+  - package-ecosystem: docker
+    directory: /dashboard
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    labels: [dependencies, docker]
+
+  - package-ecosystem: docker
+    directory: /log
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    labels: [dependencies, docker]
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: "chore(ci)"
+      include: scope

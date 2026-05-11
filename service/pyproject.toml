@@ -3,7 +3,7 @@ name = "skillledger-service"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.128",
+    "fastapi>=0.136.1",
     "uvicorn[standard]",
     "pydantic>=2.0",
     "pydantic-settings",

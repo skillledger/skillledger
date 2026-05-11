@@ -1,0 +1,54 @@
+SkillLedger Enterprise Edition (EE)
+Copyright (c) 2026 Rishikesh Ranjan and SkillLedger contributors
+
+SPDX-License-Identifier: Elastic-2.0
+
+------------------------------------------------------------------------
+SCOPE
+
+This license applies ONLY to the code in this directory:
+
+    service/src/skillledger_service/ee/
+
+All other code in the SkillLedger repository is licensed under the MIT
+License. See /LICENSE at the repository root.
+
+------------------------------------------------------------------------
+LICENSE TERMS
+
+This code is licensed under the Elastic License 2.0 (ELv2). The full
+canonical license text is available at:
+
+    https://www.elastic.co/licensing/elastic-license
+
+The Elastic License 2.0 grants you the right to use, copy, modify, and
+distribute this software, subject to the following three primary
+limitations:
+
+  1. You may not provide the software to third parties as a hosted or
+     managed service that provides users with access to a substantial
+     set of its features or functionality.
+
+  2. You may not move, change, disable, or circumvent the license-key
+     functionality, nor remove or obscure features protected by it.
+
+  3. You may not alter, remove, or obscure any licensing, copyright, or
+     other notices.
+
+These limitations exist to preserve the commercial viability of the
+SkillLedger Enterprise offering while allowing free internal use,
+inspection, and modification of the source code.
+
+------------------------------------------------------------------------
+COMMERCIAL LICENSE
+
+To request a commercial enterprise license key (or to enquire about
+terms that fall outside ELv2), contact:
+
+    me@rishikeshranjan.com
+
+------------------------------------------------------------------------
+NO WARRANTY
+
+This software is provided "as is", without warranty of any kind, express
+or implied. See the canonical ELv2 text for the complete disclaimer.

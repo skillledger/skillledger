@@ -1,0 +1,47 @@
+# EditorConfig for SkillLedger - https://editorconfig.org
+# Top-most EditorConfig file; do not look higher.
+root = true
+
+# Default for everything: 2-space indent, LF, UTF-8, trim trailing whitespace,
+# insert final newline.
+[*]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Go is tab-indented by convention (gofmt).
+[*.go]
+indent_style = tab
+indent_size = 4
+
+# Go modules / sum
+[{go.mod,go.sum}]
+indent_style = tab
+
+# Python uses 4 spaces (PEP 8).
+[*.py]
+indent_size = 4
+
+# Makefiles require literal tabs.
+[Makefile]
+indent_style = tab
+indent_size = 4
+
+# Markdown: trailing whitespace is meaningful (line break), keep it.
+[*.md]
+trim_trailing_whitespace = false
+
+# JSON / YAML / TOML: 2 spaces.
+[*.{json,yml,yaml,toml}]
+indent_size = 2
+
+# Shell scripts: 4 spaces (matches shellcheck style).
+[*.{sh,bash}]
+indent_size = 4
+
+# JavaScript / TypeScript / TSX: 2 spaces (Next.js default).
+[*.{js,jsx,ts,tsx,mjs,cjs}]
+indent_size = 2

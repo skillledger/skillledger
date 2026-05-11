@@ -1,18 +1,146 @@
+# ====================================================================
+# SkillLedger .gitignore
+# ====================================================================
+# Anything tracked before this rule was added must be removed with:
+#   git rm --cached <path>
+# Then committed. New rules only affect untracked files.
+
+# --------------------------------------------------------------------
+# Secrets and local configuration (NEVER commit these)
+# --------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.*.example
+.envrc
+*.pem
+*.key
+!**/testdata/**/*.pem
+!**/testdata/**/*.key
+*.p12
+*.pfx
+*.crt
+!**/testdata/**/*.crt
+secrets/
+credentials/
+service-account*.json
+id_rsa*
+*.kubeconfig
+kubeconfig
+
+# --------------------------------------------------------------------
+# Internal planning / GSD workflow state (private, not for public repo)
+# --------------------------------------------------------------------
+.planning/
+
+# --------------------------------------------------------------------
+# Build outputs - Go
+# --------------------------------------------------------------------
 bin/
 !npm/skillledger/bin/
-*.exe
 !npm/skillledger/bin/*.js
-.env
+*.exe
+*.test
+*.out
+coverage.out
+coverage.html
+cli/skillledger
+cli/skillledger-*
+log/skillledger-log
+log/skillledger-log-*
+vendor/
+dist/
+
+# --------------------------------------------------------------------
+# Build outputs - Python
+# --------------------------------------------------------------------
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.tox/
 .pytest_cache/
 .ruff_cache/
-dist/
-*.egg-info/
-.venv/
-vendor/
-coverage.out
-.DS_Store
+.mypy_cache/
+.coverage
+htmlcov/
+.python-version
+
+# --------------------------------------------------------------------
+# Build outputs - Node / Next.js / TypeScript
+# --------------------------------------------------------------------
+node_modules/
+.next/
+out/
+build/
+.turbo/
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+.pnpm-store/
+.yarn/
+.npm/
+
+# --------------------------------------------------------------------
+# Caches / coverage / logs
+# --------------------------------------------------------------------
+*.log
+logs/
+.cache/
+coverage/
+*.lcov
+.nyc_output/
+
+# --------------------------------------------------------------------
+# Caddy runtime data (do NOT ignore Caddyfile* configs)
+# --------------------------------------------------------------------
+caddy_data/
+caddy_config/
+
+# --------------------------------------------------------------------
+# Databases (local dev only)
+# --------------------------------------------------------------------
 *.db
+*.sqlite
+*.sqlite3
+
+# --------------------------------------------------------------------
+# Editors / IDEs
+# --------------------------------------------------------------------
+.vscode/
+!.vscode/settings.example.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.project
+.classpath
+.settings/
+
+# --------------------------------------------------------------------
+# OS files
+# --------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# --------------------------------------------------------------------
+# npm distribution staging
+# --------------------------------------------------------------------
 npm/dist/
 npm/skillledger/cache/
+
+# --------------------------------------------------------------------
+# Misc backup / temp
+# --------------------------------------------------------------------
+*.bak
+*.orig
+*.rej
+*.tmp
+.git.backup*/

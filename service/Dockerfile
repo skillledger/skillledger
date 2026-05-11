@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xmlsec1 libxmlsec1-dev pkg-config gcc libxml2-dev \
@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir .
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 RUN apt-get update && apt-get install -y --no-install-recommends xmlsec1 && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --uid 1001 --no-create-home appuser
 WORKDIR /app
